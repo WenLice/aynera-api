@@ -2,22 +2,16 @@
 
 ASP.NET Core modular monolith for ElAris.
 
-## Solution
+## Layout
 
-| Project | Role |
-|---------|------|
-| `Elaris.Api` | HTTP + SignalR host |
-| `Elaris.Application` | Use cases / features |
-| `Elaris.Domain` | Entities, enums, rules |
-| `Elaris.Infrastructure` | EF Core, Redis, S3, SMS, email, Hangfire |
+| Path | Purpose |
+|------|---------|
+| `src/` | Application code |
+| `tests/` | Automated tests |
+| `docs/` | Backend setup and structure docs |
 
-## Run locally
+## Quick start
 
-```bash
-docker compose up -d
-dotnet run --project src/Elaris.Api
-```
+See [docs/setup.md](./docs/setup.md).
 
-## Docs
-
-Product and engineering specs live in **`elaris-admin/docs`**. This repo keeps setup notes only.
+Product specs: `elaris-admin/docs`.
