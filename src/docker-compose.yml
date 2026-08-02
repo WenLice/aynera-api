@@ -15,5 +15,19 @@ services:
     ports:
       - "6379:6379"
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ELARIS_DB_CONNECTION: Host=postgres;Port=5432;Database=elaris;Username=elaris;Password=elaris
+      ELARIS_REDIS: redis:6379
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+
 volumes:
   elaris_pg:
