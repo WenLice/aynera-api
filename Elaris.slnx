@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Elaris.Api/Elaris.Api.csproj" />
+    <Project Path="src/Elaris.Application/Elaris.Application.csproj" />
+    <Project Path="src/Elaris.Domain/Elaris.Domain.csproj" />
+    <Project Path="src/Elaris.Infrastructure/Elaris.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Elaris.Api.IntegrationTests/Elaris.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Elaris.Application.Tests/Elaris.Application.Tests.csproj" />
+    <Project Path="tests/Elaris.Domain.Tests/Elaris.Domain.Tests.csproj" />
+  </Folder>
+</Solution>
