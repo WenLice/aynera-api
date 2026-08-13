@@ -4,6 +4,8 @@
     <Project Path="Elaris.Application/Elaris.Application.csproj" />
     <Project Path="Elaris.Domain/Elaris.Domain.csproj" />
     <Project Path="Elaris.Infrastructure/Elaris.Infrastructure.csproj" />
+    <Project Path="Elaris.Notifications/Elaris.Notifications.csproj" />
+    <Project Path="Elaris.Persistence/Elaris.Persistence.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="../tests/Elaris.Api.IntegrationTests/Elaris.Api.IntegrationTests.csproj" />

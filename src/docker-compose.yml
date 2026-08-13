@@ -9,6 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - elaris_pg:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
 
   redis:
     image: redis:7-alpine
@@ -21,8 +22,14 @@ services:
       dockerfile: Dockerfile
     environment:
       ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Development
       ELARIS_DB_CONNECTION: Host=postgres;Port=5432;Database=elaris;Username=elaris;Password=elaris
       ELARIS_REDIS: redis:6379
+      ELARIS_JWT_SIGNING_KEY: dev-only-elaris-jwt-signing-key-change-in-prod-32chars
+      ELARIS_JWT_ISSUER: elaris-api
+      ELARIS_JWT_AUDIENCE_MEMBER_WEB: member-web
+      ELARIS_JWT_AUDIENCE_MEMBER_MOBILE: member-mobile
+      ELARIS_JWT_AUDIENCE_STAFF: staff
     ports:
       - "8080:8080"
     depends_on:

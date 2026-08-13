@@ -5,6 +5,8 @@ COPY Elaris.Api/Elaris.Api.csproj Elaris.Api/
 COPY Elaris.Application/Elaris.Application.csproj Elaris.Application/
 COPY Elaris.Domain/Elaris.Domain.csproj Elaris.Domain/
 COPY Elaris.Infrastructure/Elaris.Infrastructure.csproj Elaris.Infrastructure/
+COPY Elaris.Notifications/Elaris.Notifications.csproj Elaris.Notifications/
+COPY Elaris.Persistence/Elaris.Persistence.csproj Elaris.Persistence/
 RUN dotnet restore Elaris.Api/Elaris.Api.csproj
 
 COPY . .

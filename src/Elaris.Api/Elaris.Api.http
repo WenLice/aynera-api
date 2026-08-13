@@ -1,6 +1,164 @@
 @Elaris.Api_HostAddress = http://localhost:5057
 
-GET {{Elaris.Api_HostAddress}}/weatherforecast/
+### Health
+GET {{Elaris.Api_HostAddress}}/health
 Accept: application/json
 
-###
+### Register
+POST {{Elaris.Api_HostAddress}}/users/register
+Content-Type: application/json
+
+{
+  "phone": "9876543210",
+  "email": "member@example.com",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "gender": "Female",
+  "dateOfBirth": "1990-05-15",
+  "city": "Mumbai",
+  "religion": "Hindu"
+}
+
+### VerifyEmail
+POST {{Elaris.Api_HostAddress}}/auth/verifyemail
+Content-Type: application/json
+
+{
+  "userId": "{{user_id}}",
+  "token": "{{email_token}}"
+}
+
+### Login (send SMS OTP)
+POST {{Elaris.Api_HostAddress}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "9876543210"
+}
+
+### VerifySms (complete login)
+POST {{Elaris.Api_HostAddress}}/auth/verifysms
+Content-Type: application/json
+
+{
+  "phone": "9876543210",
+  "code": "123456",
+  "audience": "member-web"
+}
+
+### Refresh
+POST {{Elaris.Api_HostAddress}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+### Logout
+POST {{Elaris.Api_HostAddress}}/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+### Me
+GET {{Elaris.Api_HostAddress}}/users/me
+Authorization: Bearer {{access_token}}
+
+### UploadPhotos
+POST {{Elaris.Api_HostAddress}}/users/me/photos
+Authorization: Bearer {{access_token}}
+Content-Type: multipart/form-data; boundary=----elaris
+
+------elaris
+Content-Disposition: form-data; name="photos"; filename="face.jpg"
+Content-Type: image/jpeg
+
+< ./face.jpg
+------elaris--
+
+### ListPhotos
+GET {{Elaris.Api_HostAddress}}/users/me/photos
+Authorization: Bearer {{access_token}}
+
+### GetPhoto
+GET {{Elaris.Api_HostAddress}}/users/me/photos/{{photo_id}}
+Authorization: Bearer {{access_token}}
+
+### DeletePhoto
+DELETE {{Elaris.Api_HostAddress}}/users/me/photos/{{photo_id}}
+Authorization: Bearer {{access_token}}
+
+### UploadIntroductionVideo
+POST {{Elaris.Api_HostAddress}}/users/me/introduction-video
+Authorization: Bearer {{access_token}}
+Content-Type: multipart/form-data; boundary=----elaris
+
+------elaris
+Content-Disposition: form-data; name="video"; filename="intro.mp4"
+Content-Type: video/mp4
+
+< ./intro.mp4
+------elaris--
+
+### GetIntroductionVideo
+GET {{Elaris.Api_HostAddress}}/users/me/introduction-video
+Authorization: Bearer {{access_token}}
+
+### GetIntroductionVideoContent
+GET {{Elaris.Api_HostAddress}}/users/me/introduction-video/content
+Authorization: Bearer {{access_token}}
+
+### DeleteIntroductionVideo
+DELETE {{Elaris.Api_HostAddress}}/users/me/introduction-video
+Authorization: Bearer {{access_token}}
+
+### Deactivate
+POST {{Elaris.Api_HostAddress}}/users/deactivate
+Authorization: Bearer {{access_token}}
+
+### Reactivate
+POST {{Elaris.Api_HostAddress}}/users/reactivate
+Authorization: Bearer {{access_token}}
+
+### DeleteAccount
+DELETE {{Elaris.Api_HostAddress}}/users/account
+Authorization: Bearer {{access_token}}
+
+### JoinEarlyAccess
+POST {{Elaris.Api_HostAddress}}/early-access/register
+Content-Type: application/json
+
+{
+  "fullName": "Ada Lovelace",
+  "email": "ada@example.com",
+  "city": "Mumbai",
+  "interest": "Elaris",
+  "isAdult": true,
+  "marketingConsent": true
+}
+
+### ListEarlyAccessCities
+GET {{Elaris.Api_HostAddress}}/early-access/cities
+
+### SubmitSuggestion
+POST {{Elaris.Api_HostAddress}}/public/suggestions
+Content-Type: application/json
+
+{
+  "fullName": "Ada Lovelace",
+  "email": "ada@example.com",
+  "message": "More partner cafés would help first meets."
+}
+
+### SubmitFeedback
+POST {{Elaris.Api_HostAddress}}/public/feedback
+Content-Type: application/json
+
+{
+  "fullName": "Ada Lovelace",
+  "email": "ada@example.com",
+  "phone": "9876543210",
+  "message": "I need help with a pilot support request."
+}

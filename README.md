@@ -28,9 +28,9 @@ elaris-api/
 |------|---------|
 | `src/` | Application code, solution, Docker files |
 | `tests/` | Automated tests |
-| `docs/` | Backend setup notes |
+| `docs/` | Developer guide, API reference, setup, structure |
 
-Product-wide specs live in `elaris-admin/docs`.
+Start with [docs/developer-guide.md](./docs/developer-guide.md) and [docs/api-reference.md](./docs/api-reference.md). Product-wide specs live in `elaris-admin/docs`.
 
 ## Requirements
 

@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Elaris.Application\Elaris.Application.csproj" />
+    <ProjectReference Include="..\..\src\Elaris.Infrastructure\Elaris.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
