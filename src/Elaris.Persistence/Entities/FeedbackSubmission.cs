@@ -12,8 +12,10 @@ public sealed class FeedbackSubmission : ISoftDeletable, IActivatable
     public string Message { get; set; } = string.Empty;
     public string? ClientIp { get; set; }
     public string? UserAgent { get; set; }
-    /// <summary>True when the submitted email matches an existing (non-deleted) member account.</summary>
+    /// <summary>True when <see cref="MemberId"/> was resolved at submit time.</summary>
     public bool IsExistingUser { get; set; }
+    /// <summary>Matched member account id when the submit email belongs to a member; otherwise null.</summary>
+    public Guid? MemberId { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset? DeactivatedAtUtc { get; set; }
     public bool IsDeleted { get; set; }

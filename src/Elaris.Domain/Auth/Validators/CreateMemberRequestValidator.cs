@@ -1,4 +1,5 @@
 using Elaris.Domain.Auth.Requests;
+using Elaris.Domain.Auth.Statics;
 using Elaris.Domain.Common.Validation;
 using FluentValidation;
 
@@ -41,5 +42,10 @@ public sealed class CreateMemberRequestValidator : AbstractValidator<CreateMembe
         RuleFor(x => x.Religion)
             .MaximumLength(100).WithMessage("Religion is too long.")
             .When(x => !string.IsNullOrWhiteSpace(x.Religion));
+
+        RuleFor(x => x.Password)
+            .Must(PasswordRules.IsWellFormed)
+            .WithMessage("Password must be at least 8 characters and include a lowercase letter and a number.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Password));
     }
 }

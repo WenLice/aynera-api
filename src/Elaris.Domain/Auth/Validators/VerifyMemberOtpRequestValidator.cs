@@ -9,10 +9,10 @@ public sealed class VerifyMemberOtpRequestValidator : AbstractValidator<VerifyMe
 {
     public VerifyMemberOtpRequestValidator()
     {
-        RuleFor(x => x.Phone)
-            .NotEmpty().WithMessage("Phone is required.")
-            .Must(RequestValidation.BeValidIndianMobile)
-            .WithMessage("Enter a valid Indian mobile number.");
+        RuleFor(x => x.Identifier)
+            .NotEmpty().WithMessage("Phone or email is required.")
+            .Must(RequestValidation.BeValidLoginIdentifier)
+            .WithMessage("Enter a valid Indian mobile number or email.");
 
         RuleFor(x => x.Code)
             .NotEmpty().WithMessage("OTP code is required.")
@@ -21,9 +21,8 @@ public sealed class VerifyMemberOtpRequestValidator : AbstractValidator<VerifyMe
         RuleFor(x => x.Audience)
             .Must(audience =>
                 string.IsNullOrWhiteSpace(audience)
-                || string.Equals(audience, AuthAudiences.MemberWeb, StringComparison.Ordinal)
-                || string.Equals(audience, AuthAudiences.MemberMobile, StringComparison.Ordinal))
-            .WithMessage("Audience must be member-web or member-mobile.")
+                || string.Equals(audience, AuthAudiences.Member, StringComparison.Ordinal))
+            .WithMessage("Audience must be member.")
             .When(x => !string.IsNullOrWhiteSpace(x.Audience));
     }
 }

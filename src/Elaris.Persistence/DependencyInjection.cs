@@ -40,6 +40,12 @@ public static class DependencyInjection
             {
                 identity.User.RequireUniqueEmail = false;
                 identity.SignIn.RequireConfirmedAccount = false;
+                identity.Password.RequiredLength = 8;
+                identity.Password.RequireDigit = true;
+                identity.Password.RequireLowercase = true;
+                identity.Password.RequireUppercase = false;
+                identity.Password.RequireNonAlphanumeric = false;
+                identity.Password.RequiredUniqueChars = 1;
                 identity.Lockout.AllowedForNewUsers = true;
                 identity.Lockout.MaxFailedAccessAttempts = 10;
                 identity.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);

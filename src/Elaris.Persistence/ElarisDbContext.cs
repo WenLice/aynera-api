@@ -36,10 +36,14 @@ public sealed class ElarisDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
                 .IsRequired();
 
             entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.Property(x => x.IsSuperAdmin).IsRequired();
+            entity.Property(x => x.IsRestricted).IsRequired();
             entity.Property(x => x.DeletedPhoneE164).HasMaxLength(32);
             entity.HasIndex(x => x.PhoneNumber);
             entity.HasIndex(x => x.IsDeleted);
             entity.HasIndex(x => x.IsActive);
+            entity.HasIndex(x => x.IsRestricted);
+            entity.HasIndex(x => x.IsSuperAdmin);
             entity.HasQueryFilter(x => !x.IsDeleted);
         });
 
@@ -196,6 +200,7 @@ public sealed class ElarisDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
             entity.Property(x => x.CreatedAtUtc).IsRequired();
             entity.HasIndex(x => x.Email);
             entity.HasIndex(x => x.IsExistingUser);
+            entity.HasIndex(x => x.MemberId);
             entity.HasIndex(x => x.CreatedAtUtc);
             entity.HasIndex(x => x.IsDeleted);
             entity.HasIndex(x => x.IsActive);

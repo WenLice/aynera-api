@@ -6,6 +6,7 @@ using Elaris.Application.Features.EarlyAccess.Services.Interfaces;
 using Elaris.Application.Features.PublicForms.Repositories;
 using Elaris.Domain.Audit.Records;
 using Elaris.Domain.Audit.Statics;
+using Elaris.Domain.Common;
 using Elaris.Domain.EarlyAccess.Records;
 using Elaris.Domain.EarlyAccess.Requests;
 using Elaris.Domain.EarlyAccess.Responses;
@@ -48,6 +49,19 @@ public sealed class EarlyAccessService : IEarlyAccessService
     {
         var cities = await _cities.ListOpenAsync(cancellationToken);
         return _mapper.Map<List<EarlyAccessCityDto>>(cities);
+    }
+
+    public async Task<PagedResult<EarlyAccessSignupAdminDto>> ListSignupsAsync(
+        PagedQuery query,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("ListEarlyAccessSignups page {Page} size {PageSize}", query.Page, query.PageSize);
+        var (signups, totalCount) = await _signups.ListPageAsync(query.Skip, query.PageSize, cancellationToken);
+        return new PagedResult<EarlyAccessSignupAdminDto>(
+            _mapper.Map<List<EarlyAccessSignupAdminDto>>(signups),
+            query.Page,
+            query.PageSize,
+            totalCount);
     }
 
     public async Task<EarlyAccessSignupDto> RegisterAsync(

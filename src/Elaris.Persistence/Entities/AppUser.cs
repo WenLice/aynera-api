@@ -7,8 +7,12 @@ namespace Elaris.Persistence.Entities;
 public sealed class AppUser : IdentityUser<Guid>, ISoftDeletable, IActivatable
 {
     public AccountKind AccountKind { get; set; } = AccountKind.Member;
+    public bool IsSuperAdmin { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset? DeactivatedAtUtc { get; set; }
+    /// <summary>Set by a super-admin; blocks sign-in until unrestricted. Independent of member self-deactivate.</summary>
+    public bool IsRestricted { get; set; }
+    public DateTimeOffset? RestrictedAtUtc { get; set; }
     public bool IsDeleted { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastLoginAtUtc { get; set; }

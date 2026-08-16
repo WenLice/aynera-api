@@ -8,6 +8,7 @@ public sealed class CapturingEmailService : IEmailService
     private readonly object _gate = new();
     private string? _lastEmail;
     private string? _lastVerifyUrl;
+    private string? _lastOtpCode;
 
     public string? LastEmail
     {
@@ -40,5 +41,26 @@ public sealed class CapturingEmailService : IEmailService
         }
 
         return Task.CompletedTask;
+    }
+
+    public Task SendOtpAsync(string email, string code, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            _lastEmail = email;
+            _lastOtpCode = code;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public string? GetOtpCode(string email)
+    {
+        lock (_gate)
+        {
+            return string.Equals(_lastEmail, email, StringComparison.OrdinalIgnoreCase)
+                ? _lastOtpCode
+                : null;
+        }
     }
 }

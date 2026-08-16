@@ -21,6 +21,21 @@ public sealed class EarlyAccessSignupRepository : IEarlyAccessSignupRepository
         _logger = logger;
     }
 
+    public async Task<(IReadOnlyList<EarlyAccessSignupRecord> Items, int TotalCount)> ListPageAsync(
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var query = _db.EarlyAccessSignups.AsNoTracking();
+        var totalCount = await query.CountAsync(cancellationToken);
+        var entities = await query
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+        return (_mapper.Map<List<EarlyAccessSignupRecord>>(entities), totalCount);
+    }
+
     public async Task<EarlyAccessSignupRecord?> FindByEmailAsync(
         string emailNormalized,
         CancellationToken cancellationToken)

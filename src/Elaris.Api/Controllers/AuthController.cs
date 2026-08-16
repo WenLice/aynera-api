@@ -26,7 +26,7 @@ public sealed class AuthController : BaseController
     /// <remarks>
     /// Confirms the email address using the token from the verification link sent at Register.
     /// There is no separate “send verification email” endpoint — the link is sent automatically on Register.
-    /// Call with JSON body after the user opens the email link (typically from member-web).
+    /// Call with JSON body after the user opens the email link (typically from the member app).
     /// Idempotent if the email is already confirmed.
     /// </remarks>
     [HttpPost("verifyemail")]
@@ -44,11 +44,11 @@ public sealed class AuthController : BaseController
 
     /// <summary>Login</summary>
     /// <remarks>
-    /// Starts phone login / SMS verification by sending an OTP to a registered Indian mobile number.
-    /// Fails with user_not_found if the phone is not registered (Register first).
-    /// Dev default is Console (no send). Set SMS provider to Textbelt for free-tier SMS, or wire a paid provider later.
-    /// OTP codes are never written to logs.
-    /// Next step: VerifySms with the same phone and the OTP code.
+    /// Starts member login by sending an OTP to a registered Indian mobile number or email.
+    /// Fails with user_not_found if the identifier is not a member account (Register first).
+    /// Admin accounts are rejected with the same user_not_found response.
+    /// Dev default is Console (no send). OTP codes are never written to logs.
+    /// Next step: VerifySms with the same identifier and the OTP code (SMS or email).
     /// </remarks>
     [HttpPost("login")]
     [AllowAnonymous]
@@ -68,7 +68,7 @@ public sealed class AuthController : BaseController
 
     /// <summary>VerifySms</summary>
     /// <remarks>
-    /// Verifies the SMS OTP for an existing registered member, marks the phone confirmed, and issues tokens.
+    /// Verifies the SMS or email OTP for an existing registered member, marks that identifier confirmed, and issues tokens.
     /// Does not create accounts — Register first, then Login, then VerifySms.
     /// Deactivated accounts cannot complete login until Reactivate.
     /// </remarks>
@@ -82,6 +82,63 @@ public sealed class AuthController : BaseController
         CancellationToken cancellationToken)
     {
         var result = await _authService.VerifyMemberOtpAsync(request, cancellationToken);
+        return OkResponse(result);
+    }
+
+    /// <summary>PasswordLogin</summary>
+    /// <remarks>
+    /// Signs in a registered member with phone or email plus password. Issues member tokens (<c>aud=member</c>, <c>amr=pwd</c>).
+    /// Fails with password_not_set if the account has no password yet — use OTP login, then SetPassword, or register with a password.
+    /// Admin accounts are rejected as user_not_found.
+    /// </remarks>
+    [HttpPost("password")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<TokenResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<TokenResponse>>> PasswordLogin(
+        [FromBody] MemberPasswordLoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.LoginWithPasswordAsync(request, cancellationToken);
+        return OkResponse(result);
+    }
+
+    /// <summary>ForgotPassword</summary>
+    /// <remarks>
+    /// Sends a password-reset OTP to the given phone or email when a matching active member exists.
+    /// Always returns 200 with the same shape as Login so callers cannot probe whether an account exists.
+    /// OTP codes are never written to logs.
+    /// Next step: ResetPassword with the same identifier, the code, and a new password.
+    /// </remarks>
+    [HttpPost("password/forgot")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<RequestMemberOtpResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ApiResponse<RequestMemberOtpResponse>>> ForgotPassword(
+        [FromBody] ForgotMemberPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.RequestPasswordResetAsync(
+            request,
+            HttpContext.Connection.RemoteIpAddress?.ToString(),
+            cancellationToken);
+        return OkResponse(result);
+    }
+
+    /// <summary>ResetPassword</summary>
+    /// <remarks>
+    /// Verifies the password-reset OTP, sets a new password, and issues member tokens.
+    /// </remarks>
+    [HttpPost("password/reset")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<TokenResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<TokenResponse>>> ResetPassword(
+        [FromBody] ResetMemberPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.ResetPasswordAsync(request, cancellationToken);
         return OkResponse(result);
     }
 

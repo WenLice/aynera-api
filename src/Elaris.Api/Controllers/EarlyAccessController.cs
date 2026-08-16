@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Elaris.Api.Controllers;
 
 /// <summary>
-/// Early-access waitlist and city catalog. Public read/register; city writes require Staff.
+/// Early-access waitlist and city catalog. Public read/register; city writes and waitlist list require Admin.
 /// </summary>
 [Route("early-access")]
 [Tags("EarlyAccess")]
@@ -28,7 +28,7 @@ public sealed class EarlyAccessController : BaseController
     /// <summary>ListEarlyAccessCities</summary>
     /// <remarks>
     /// Anonymous callers receive active cities for /apply.
-    /// Staff callers receive the full catalog (including inactive).
+    /// Admin callers receive the full catalog (including inactive).
     /// </remarks>
     [HttpGet("cities")]
     [AllowAnonymous]
@@ -36,7 +36,7 @@ public sealed class EarlyAccessController : BaseController
     public async Task<ActionResult<ApiResponse<IReadOnlyList<EarlyAccessCityDto>>>> ListCities(
         CancellationToken cancellationToken)
     {
-        if (User.IsInRole(AuthRoles.Staff))
+        if (User.IsInRole(AuthRoles.Admin))
         {
             var all = await _cities.ListAsync(cancellationToken);
             return OkResponse(all);
@@ -48,7 +48,7 @@ public sealed class EarlyAccessController : BaseController
 
     /// <summary>CreateEarlyAccessCity</summary>
     [HttpPost("cities")]
-    [Authorize(Policy = "Staff")]
+    [Authorize(Policy = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<EarlyAccessCityDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApiResponse<EarlyAccessCityDto>>> CreateCity(
@@ -61,7 +61,7 @@ public sealed class EarlyAccessController : BaseController
 
     /// <summary>UpdateEarlyAccessCity</summary>
     [HttpPatch("cities/{id:guid}")]
-    [Authorize(Policy = "Staff")]
+    [Authorize(Policy = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<EarlyAccessCityDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<EarlyAccessCityDto>>> UpdateCity(
@@ -76,7 +76,7 @@ public sealed class EarlyAccessController : BaseController
     /// <summary>DeleteEarlyAccessCity</summary>
     /// <remarks>Soft-deletes the city so it no longer appears for anonymous GET /early-access/cities.</remarks>
     [HttpDelete("cities/{id:guid}")]
-    [Authorize(Policy = "Staff")]
+    [Authorize(Policy = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<object?>>> DeleteCity(
@@ -85,6 +85,23 @@ public sealed class EarlyAccessController : BaseController
     {
         await _cities.SoftDeleteAsync(id, cancellationToken);
         return OkResponse();
+    }
+
+    /// <summary>ListEarlyAccessSignups</summary>
+    /// <remarks>
+    /// Waitlist inbox for admins. Newest first. Public register responses stay thin; this list includes contact fields.
+    /// Soft-deleted rows are omitted. Query: <c>page</c> (default 1) and <c>pageSize</c> (default 15, max 50).
+    /// </remarks>
+    [HttpGet("signups")]
+    [Authorize(Policy = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<EarlyAccessSignupAdminDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<PagedResult<EarlyAccessSignupAdminDto>>>> ListSignups(
+        [FromQuery] PagedQuery query,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _earlyAccess.ListSignupsAsync(query, cancellationToken);
+        return OkResponse(rows);
     }
 
     /// <summary>RegisterEarlyAccess</summary>

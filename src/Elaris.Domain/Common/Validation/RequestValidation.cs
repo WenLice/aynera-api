@@ -1,3 +1,4 @@
+using System.Net.Mail;
 using System.Text.RegularExpressions;
 using Elaris.Domain.EarlyAccess.Enums;
 
@@ -5,6 +6,31 @@ namespace Elaris.Domain.Common.Validation;
 
 public static partial class RequestValidation
 {
+    public static bool BeValidEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return false;
+        }
+
+        var trimmed = email.Trim();
+        return MailAddress.TryCreate(trimmed, out var parsed)
+            && string.Equals(parsed.Address, trimmed, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool BeValidLoginIdentifier(string? identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return false;
+        }
+
+        var trimmed = identifier.Trim();
+        return trimmed.Contains('@', StringComparison.Ordinal)
+            ? BeValidEmail(trimmed)
+            : BeValidIndianMobile(trimmed);
+    }
+
     public static bool BeValidIndianMobile(string? phone)
     {
         if (string.IsNullOrWhiteSpace(phone))

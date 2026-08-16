@@ -1,7 +1,8 @@
 namespace Elaris.Domain.Auth.Records;
 
 public sealed record OtpChallenge(
-    string PhoneE164,
+    string Channel,
+    string Destination,
     string CodeHash,
     int Attempts,
     DateTimeOffset ExpiresAtUtc,

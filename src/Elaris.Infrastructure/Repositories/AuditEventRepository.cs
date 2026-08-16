@@ -3,6 +3,7 @@ using Elaris.Domain.Audit.Records;
 using Elaris.Domain.Audit.Statics;
 using Elaris.Persistence;
 using Elaris.Persistence.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace Elaris.Infrastructure.Repositories;
 
@@ -59,5 +60,58 @@ public sealed class AuditEventRepository : IAuditEventRepository
         _db.AuditLogs.Add(logEntity);
         _db.AuditEvents.Add(eventEntity);
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<(IReadOnlyList<AuditEventAdminRecord> Items, int TotalCount)> ListPageAsync(
+        int skip,
+        int take,
+        IReadOnlyList<string>? actions,
+        Guid? subjectUserId,
+        string? subjectType,
+        string? subjectId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var query = _db.AuditEvents.AsNoTracking().Include(e => e.AuditLog).AsQueryable();
+
+        if (actions is { Count: > 0 })
+        {
+            query = query.Where(e => actions.Contains(e.Action));
+        }
+
+        if (subjectUserId is not null)
+        {
+            query = query.Where(e => e.SubjectUserId == subjectUserId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(subjectType))
+        {
+            query = query.Where(e => e.SubjectType == subjectType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(subjectId))
+        {
+            query = query.Where(e => e.SubjectId == subjectId);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var rows = await query
+            .OrderByDescending(e => e.AuditLog.OccurredAtUtc)
+            .ThenByDescending(e => e.Id)
+            .Skip(skip)
+            .Take(take)
+            .Select(e => new AuditEventAdminRecord(
+                e.Id,
+                e.AuditLog.OccurredAtUtc,
+                e.Action,
+                e.Outcome,
+                e.AuditLog.Message,
+                e.AuditLog.UserId,
+                e.SubjectUserId,
+                e.Changes,
+                e.AuditLog.CorrelationId))
+            .ToListAsync(cancellationToken);
+
+        return (rows, totalCount);
     }
 }

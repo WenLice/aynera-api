@@ -22,4 +22,12 @@ public sealed class ConsoleEmailService : IEmailService
         _logger.LogInformation("Console email verification dispatched (address and link not logged).");
         return Task.CompletedTask;
     }
+
+    public Task SendOtpAsync(string email, string code, CancellationToken cancellationToken)
+    {
+        _ = email;
+        _ = code;
+        _logger.LogInformation("Console email OTP dispatched (code and address not logged).");
+        return Task.CompletedTask;
+    }
 }

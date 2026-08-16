@@ -3,6 +3,7 @@ using Elaris.Application.Features.PublicForms.Repositories;
 using Elaris.Application.Features.Suggestions.Models;
 using Elaris.Application.Features.Suggestions.Repositories;
 using Elaris.Application.Features.Suggestions.Services.Interfaces;
+using Elaris.Domain.Common;
 using Elaris.Domain.Suggestions.Records;
 using Elaris.Domain.Suggestions.Requests;
 using Elaris.Domain.Suggestions.Responses;
@@ -32,6 +33,17 @@ public sealed class SuggestionService : ISuggestionService
         _mapper = mapper;
         _logger = logger;
         _options = options.Value;
+    }
+
+    public async Task<PagedResult<SuggestionAdminDto>> ListAsync(PagedQuery query, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("ListSuggestions page {Page} size {PageSize}", query.Page, query.PageSize);
+        var (rows, totalCount) = await _suggestions.ListPageAsync(query.Skip, query.PageSize, cancellationToken);
+        return new PagedResult<SuggestionAdminDto>(
+            _mapper.Map<List<SuggestionAdminDto>>(rows),
+            query.Page,
+            query.PageSize,
+            totalCount);
     }
 
     public async Task<SuggestionDto> SubmitAsync(

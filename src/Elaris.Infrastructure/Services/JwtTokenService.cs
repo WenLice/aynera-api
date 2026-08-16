@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Elaris.Application.Features.Auth.Models;
 using Elaris.Application.Features.Auth.Services.Interfaces;
+using Elaris.Domain.Auth.Enums;
 using Elaris.Domain.Auth.Records;
 using Elaris.Domain.Auth.Statics;
 using Microsoft.Extensions.Options;
@@ -52,6 +53,11 @@ public sealed class JwtTokenService : ITokenService
         {
             claims.Add(new Claim(ClaimTypes.Role, role));
             claims.Add(new Claim("role", role));
+        }
+
+        if (string.Equals(user.AccountKind, nameof(AccountKind.Admin), StringComparison.Ordinal))
+        {
+            claims.Add(new Claim("is_super_admin", user.IsSuperAdmin ? "true" : "false"));
         }
 
         var token = new JwtSecurityToken(

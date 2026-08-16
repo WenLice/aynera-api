@@ -4,10 +4,12 @@ using Elaris.Application.Features.Feedback.Models;
 using Elaris.Application.Features.Feedback.Repositories;
 using Elaris.Application.Features.Feedback.Services.Interfaces;
 using Elaris.Application.Features.PublicForms.Repositories;
+using Elaris.Domain.Auth.Enums;
+using Elaris.Domain.Common;
+using Elaris.Domain.Feedback.Exceptions;
 using Elaris.Domain.Feedback.Records;
 using Elaris.Domain.Feedback.Requests;
 using Elaris.Domain.Feedback.Responses;
-using Elaris.Domain.Feedback.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -36,6 +38,19 @@ public sealed class FeedbackService : IFeedbackService
         _mapper = mapper;
         _logger = logger;
         _options = options.Value;
+    }
+
+    public async Task<PagedResult<FeedbackSubmissionAdminDto>> ListAsync(
+        PagedQuery query,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("ListFeedback page {Page} size {PageSize}", query.Page, query.PageSize);
+        var (rows, totalCount) = await _feedback.ListPageAsync(query.Skip, query.PageSize, cancellationToken);
+        return new PagedResult<FeedbackSubmissionAdminDto>(
+            _mapper.Map<List<FeedbackSubmissionAdminDto>>(rows),
+            query.Page,
+            query.PageSize,
+            totalCount);
     }
 
     public async Task<FeedbackSubmissionDto> SubmitAsync(
@@ -70,8 +85,14 @@ public sealed class FeedbackService : IFeedbackService
                 statusCode: 429);
         }
 
-        var existingUser = await _users.FindByEmailAsync(email, cancellationToken);
-        var isExistingUser = existingUser is not null;
+        var existing = await _users.FindByEmailAsync(email, cancellationToken);
+        Guid? memberId = null;
+        if (existing is not null
+            && !existing.IsDeleted
+            && string.Equals(existing.AccountKind, nameof(AccountKind.Member), StringComparison.Ordinal))
+        {
+            memberId = existing.Id;
+        }
 
         var created = await _feedback.AddAsync(
             new FeedbackSubmissionRecord(
@@ -82,7 +103,8 @@ public sealed class FeedbackService : IFeedbackService
                 Message: message,
                 ClientIp: Truncate(clientIp, 64),
                 UserAgent: Truncate(userAgent, 512),
-                IsExistingUser: isExistingUser,
+                IsExistingUser: memberId is not null,
+                MemberId: memberId,
                 CreatedAtUtc: DateTimeOffset.UtcNow),
             cancellationToken);
 

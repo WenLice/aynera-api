@@ -66,6 +66,12 @@ namespace Elaris.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsRestricted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSuperAdmin")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset?>("LastLoginAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -92,6 +98,9 @@ namespace Elaris.Persistence.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTimeOffset?>("RestrictedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
@@ -107,6 +116,10 @@ namespace Elaris.Persistence.Migrations
                     b.HasIndex("IsActive");
 
                     b.HasIndex("IsDeleted");
+
+                    b.HasIndex("IsRestricted");
+
+                    b.HasIndex("IsSuperAdmin");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -396,6 +409,9 @@ namespace Elaris.Persistence.Migrations
                     b.Property<bool>("IsExistingUser")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("MemberId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -420,6 +436,8 @@ namespace Elaris.Persistence.Migrations
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("IsExistingUser");
+
+                    b.HasIndex("MemberId");
 
                     b.ToTable("FeedbackSubmissions", (string)null);
                 });

@@ -8,9 +8,9 @@ public sealed class RequestMemberOtpRequestValidator : AbstractValidator<Request
 {
     public RequestMemberOtpRequestValidator()
     {
-        RuleFor(x => x.Phone)
-            .NotEmpty().WithMessage("Phone is required.")
-            .Must(RequestValidation.BeValidIndianMobile)
-            .WithMessage("Enter a valid Indian mobile number.");
+        RuleFor(x => x.Identifier)
+            .NotEmpty().WithMessage("Phone or email is required.")
+            .Must(RequestValidation.BeValidLoginIdentifier)
+            .WithMessage("Enter a valid Indian mobile number or email.");
     }
 }

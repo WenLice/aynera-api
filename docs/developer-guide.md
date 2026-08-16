@@ -21,7 +21,7 @@ Product specs and feature plans live in **`elaris-admin/docs`** (especially `eng
 
 - Host intended as `api.elaris.com`
 - Stack: **.NET 10**, **PostgreSQL**, **Redis**
-- First live slice: **member phone OTP auth** (member-web; mobile audience shape reserved)
+- First live slice: **member phone/email OTP or password** for the member app (`aud=member`)
 - Clients: `elaris-web`, `elaris-admin`, `elaris-app`
 
 It is **not** a microservices fleet. Add features as folders under Application / Api, not as new deployables, unless an ADR says otherwise (`elaris-admin/docs/engineering/adr/001-modular-monolith.md`).
@@ -174,7 +174,7 @@ Bound mainly under `Elaris:*` in `appsettings.json` / environment:
 |------|----------------|
 | Postgres | `ConnectionStrings:Elaris` or `ELARIS_DB_CONNECTION` |
 | Redis | `Elaris:Redis` / `ELARIS_REDIS` |
-| JWT | `Elaris:Jwt` — signing key ≥ 32 chars; audiences `member-web`, `member-mobile`, `staff` |
+| JWT | `Elaris:Jwt` — signing key ≥ 32 chars; audiences `member`, `admin`; access 1 hour; member refresh 90 days; admin refresh 24 hours |
 | OTP | `Elaris:Otp` — length, TTL, attempt and rate caps |
 | Email | `Elaris:Email` — `Provider` Console\|Smtp; SMTP host/from; verify link base URL |
 | SMS | `Elaris:Sms` — `Provider` Console\|Textbelt; Textbelt key (free `textbelt`) |
@@ -197,7 +197,7 @@ See `.env.example` and [setup.md](./setup.md).
 ## Database and migrations
 
 - Schema is **EF Core code-first**. Do not hand-create app tables in Postgres.
-- On normal startup the API **migrates** the database and seeds the `member` role.
+- On normal startup the API **migrates** the database and seeds the `member` and `admin` roles.
 - Testing environment uses Postgres + in-memory OTP (`EnsureCreated`).
 
 ```bash
@@ -210,10 +210,12 @@ dotnet ef migrations add <Name> --project src/Elaris.Persistence --startup-proje
 
 | Topic | Behavior |
 |-------|----------|
-| Member login | +91 phone → OTP in Redis (hashed) → JWT access + opaque refresh |
+| Member login | Phone or email → OTP (Redis hashed) **or** password → JWT access (1 hour) + opaque refresh (90 days, `aud=member`). Admin accounts are rejected as `user_not_found`. |
+| Admin login | `POST /admin/otp/request`, `/admin/otp/verify`, `/admin/password`. Phone or email → OTP or password → JWT access (1 hour) + refresh (24 hours, `aud=admin`). Member accounts are rejected as `user_not_found`. First admin is seeded from `ELARIS_ADMIN_*` (no public register) and is the super-admin. Additional admins created via `POST /admin/admins` are never super-admins. Any admin can list and open members at `GET /admin/members` and `GET /admin/members/{id}`. Super-admins restrict/unrestrict members at `POST /admin/members/{id}/restrict|unrestrict`. Inboxes (`page`/`pageSize`, default 15, max 50): `GET /early-access/signups`, `/admin/suggestions`, `/admin/feedback`, `/admin/members`. |
 | Refresh | Rotated; reuse of an old refresh revokes the family |
-| Access token | Short-lived; Bearer header; claims include `sub`, `aud`, `role`, `amr`, `auth_time`, `sid`, `jti` |
-| `GET /users/me` | Requires JWT + **`Member`** policy |
+| Access token | Bearer header; claims include `sub`, `aud`, `role`, `amr`, `auth_time`, `sid`, `jti` (admin tokens also include `is_super_admin`; authorization still reads the database) |
+| `GET /users/me` | Requires JWT + **`Member`** policy (role `member` and `aud=member`) |
+| `GET /admin/me` | Requires JWT + **`Admin`** policy (role `admin` and `aud=admin`). `isSuperAdmin` is read from the database. |
 | Identity | ASP.NET Identity as **store**, not as login UI / `MapIdentityApi` (see ADR 002 in admin docs) |
 
 ---

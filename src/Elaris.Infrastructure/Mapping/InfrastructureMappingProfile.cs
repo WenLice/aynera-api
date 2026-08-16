@@ -23,6 +23,8 @@ public sealed class InfrastructureMappingProfile : Profile
                 src.AccountKind.ToString(),
                 src.IsActive,
                 src.IsDeleted,
+                src.IsSuperAdmin,
+                src.IsRestricted,
                 Roles: Array.Empty<string>()))
             .ForAllMembers(o => o.Ignore());
 
@@ -178,6 +180,7 @@ public sealed class InfrastructureMappingProfile : Profile
                 src.ClientIp,
                 src.UserAgent,
                 src.IsExistingUser,
+                src.MemberId,
                 src.CreatedAtUtc))
             .ForAllMembers(o => o.Ignore());
 

@@ -14,6 +14,21 @@ public class RequestValidationTests
         Assert.Equal(expected, RequestValidation.BeValidIndianMobile(phone));
 
     [Theory]
+    [InlineData("member@example.com", true)]
+    [InlineData("not-an-email", false)]
+    [InlineData("", false)]
+    public void BeValidEmail_MatchesExpected(string email, bool expected) =>
+        Assert.Equal(expected, RequestValidation.BeValidEmail(email));
+
+    [Theory]
+    [InlineData("9876543210", true)]
+    [InlineData("member@example.com", true)]
+    [InlineData("12345", false)]
+    [InlineData("not-an-email", false)]
+    public void BeValidLoginIdentifier_MatchesExpected(string identifier, bool expected) =>
+        Assert.Equal(expected, RequestValidation.BeValidLoginIdentifier(identifier));
+
+    [Theory]
     [InlineData("Elaris", true)]
     [InlineData("Elaris Professionals", true)]
     [InlineData("ElarisProfessionals", true)]

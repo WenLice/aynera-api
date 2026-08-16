@@ -10,4 +10,5 @@ public sealed record CreateMemberRequest(
     DateOnly DateOfBirth,
     string City,
     string Email,
-    string? Religion = null);
+    string? Religion = null,
+    string? Password = null);

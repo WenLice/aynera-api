@@ -1,3 +1,4 @@
+using Elaris.Domain.Common;
 using Elaris.Domain.EarlyAccess.Requests;
 using Elaris.Domain.EarlyAccess.Responses;
 
@@ -6,6 +7,10 @@ namespace Elaris.Application.Features.EarlyAccess.Services.Interfaces;
 public interface IEarlyAccessService
 {
     Task<IReadOnlyList<EarlyAccessCityDto>> ListOpenCitiesAsync(CancellationToken cancellationToken);
+
+    Task<PagedResult<EarlyAccessSignupAdminDto>> ListSignupsAsync(
+        PagedQuery query,
+        CancellationToken cancellationToken);
 
     Task<EarlyAccessSignupDto> RegisterAsync(
         JoinEarlyAccessRequest request,

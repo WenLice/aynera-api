@@ -8,11 +8,18 @@ public static class AuditActions
     public const string OtpRequestFailed = "otp_request_failed";
     public const string OtpVerified = "otp_verified";
     public const string OtpFailed = "otp_failed";
+    public const string PasswordLoginSucceeded = "password_login_succeeded";
+    public const string PasswordLoginFailed = "password_login_failed";
+    public const string PasswordSet = "password_set";
+    public const string PasswordResetRequested = "password_reset_requested";
+    public const string PasswordResetCompleted = "password_reset_completed";
     public const string TokenRefreshed = "token_refreshed";
     public const string TokenRefreshFailed = "token_refresh_failed";
     public const string Logout = "logout";
     public const string MemberDeactivated = "member_deactivated";
     public const string MemberActivated = "member_activated";
+    public const string MemberRestricted = "member_restricted";
+    public const string MemberUnrestricted = "member_unrestricted";
     public const string MemberDeleted = "member_deleted";
     public const string EarlyAccessCityCreated = "early_access_city_created";
     public const string EarlyAccessCityUpdated = "early_access_city_updated";
@@ -22,6 +29,9 @@ public static class AuditActions
     public const string PhotoDeleted = "photo_deleted";
     public const string IntroVideoUploaded = "intro_video_uploaded";
     public const string IntroVideoDeleted = "intro_video_deleted";
+    public const string AdminCreated = "admin_created";
+    public const string AdminDeactivated = "admin_deactivated";
+    public const string AdminActivated = "admin_activated";
 }
 
 public static class AuditSubjectTypes
@@ -36,9 +46,8 @@ public static class AuditSubjectTypes
 public static class AuditClients
 {
     public const string Api = "api";
-    public const string MemberWeb = "member-web";
-    public const string MemberMobile = "member-mobile";
-    public const string Staff = "staff";
+    public const string Member = "member";
+    public const string Admin = "admin";
 }
 
 public static class AuditLogLevels

@@ -2,6 +2,7 @@ using Elaris.Application.Features.EarlyAccess.Models;
 using Elaris.Application.Features.EarlyAccess.Repositories;
 using Elaris.Application.Features.EarlyAccess.Services.Implementations;
 using Elaris.Application.Features.PublicForms.Repositories;
+using Elaris.Domain.Common;
 using Elaris.Domain.EarlyAccess.Records;
 using Elaris.Domain.EarlyAccess.Requests;
 using Elaris.Domain.EarlyAccess.Exceptions;
@@ -93,6 +94,88 @@ public class EarlyAccessServiceTests
         Assert.All(open, c => Assert.True(c.IsActive));
     }
 
+    [Fact]
+    public async Task ListSignups_ReturnsNewestFirstWithContactFields()
+    {
+        var signups = new InMemoryEarlyAccessRepo();
+        var older = new EarlyAccessSignupRecord(
+            Guid.NewGuid(),
+            "Ada",
+            "ada@example.com",
+            "+919876543210",
+            "Delhi",
+            "Elaris",
+            true,
+            true,
+            null,
+            null,
+            true,
+            DateTimeOffset.UtcNow.AddMinutes(-5),
+            null);
+        var newer = older with
+        {
+            Id = Guid.NewGuid(),
+            Email = "later@example.com",
+            FullName = "Later",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+        await signups.AddAsync(older, CancellationToken.None);
+        await signups.AddAsync(newer, CancellationToken.None);
+
+        var service = CreateService(signups, new InMemoryCityRepo());
+        var page = await service.ListSignupsAsync(new PagedQuery(), CancellationToken.None);
+
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equal(2, page.Items.Count);
+        Assert.Equal(newer.Id, page.Items[0].Id);
+        Assert.Equal("Later", page.Items[0].FullName);
+        Assert.Equal("later@example.com", page.Items[0].Email);
+        Assert.Equal("+919876543210", page.Items[0].Phone);
+        Assert.Equal("Elaris", page.Items[0].Interest);
+        Assert.False(page.HasNextPage);
+    }
+
+    [Fact]
+    public async Task ListSignups_SecondPage_ReturnsOlderRow()
+    {
+        var signups = new InMemoryEarlyAccessRepo();
+        var older = new EarlyAccessSignupRecord(
+            Guid.NewGuid(),
+            "Ada",
+            "ada@example.com",
+            "+919876543210",
+            "Delhi",
+            "Elaris",
+            true,
+            true,
+            null,
+            null,
+            true,
+            DateTimeOffset.UtcNow.AddMinutes(-5),
+            null);
+        var newer = older with
+        {
+            Id = Guid.NewGuid(),
+            Email = "later@example.com",
+            FullName = "Later",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+        await signups.AddAsync(older, CancellationToken.None);
+        await signups.AddAsync(newer, CancellationToken.None);
+
+        var service = CreateService(signups, new InMemoryCityRepo());
+        var page = await service.ListSignupsAsync(
+            new PagedQuery { Page = 2, PageSize = 1 },
+            CancellationToken.None);
+
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equal(2, page.TotalPages);
+        Assert.Single(page.Items);
+        Assert.Equal(older.Id, page.Items[0].Id);
+        Assert.True(page.HasPreviousPage);
+        Assert.False(page.HasNextPage);
+    }
+
     private static EarlyAccessService CreateService(
         IEarlyAccessSignupRepository signups,
         IEarlyAccessCityRepository cities) =>
@@ -124,6 +207,16 @@ file sealed class InMemoryEarlyAccessRepo : IEarlyAccessSignupRepository
         string emailNormalized,
         CancellationToken cancellationToken) =>
         Task.FromResult(All.FirstOrDefault(x => x.Email == emailNormalized));
+
+    public Task<(IReadOnlyList<EarlyAccessSignupRecord> Items, int TotalCount)> ListPageAsync(
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var ordered = All.OrderByDescending(x => x.CreatedAtUtc).ToList();
+        return Task.FromResult<(IReadOnlyList<EarlyAccessSignupRecord>, int)>(
+            (ordered.Skip(skip).Take(take).ToList(), ordered.Count));
+    }
 
     public Task<EarlyAccessSignupRecord> AddAsync(
         EarlyAccessSignupRecord signup,

@@ -3,7 +3,9 @@ using Elaris.Application.Features.Feedback.Models;
 using Elaris.Application.Features.Feedback.Repositories;
 using Elaris.Application.Features.Feedback.Services.Implementations;
 using Elaris.Application.Features.PublicForms.Repositories;
+using Elaris.Domain.Auth.Enums;
 using Elaris.Domain.Auth.Records;
+using Elaris.Domain.Common;
 using Elaris.Domain.Feedback.Records;
 using Elaris.Domain.Feedback.Requests;
 using Elaris.Domain.Feedback.Exceptions;
@@ -48,6 +50,7 @@ public class FeedbackServiceTests
             "Member",
             true,
             false,
+            false, false,
             ["member"]);
         var service = CreateService(repo, users: new FeedbackUserLookup(existing));
 
@@ -62,6 +65,38 @@ public class FeedbackServiceTests
 
         Assert.True(result.IsExistingUser);
         Assert.True(repo.All[0].IsExistingUser);
+        Assert.Equal(existing.Id, repo.All[0].MemberId);
+    }
+
+    [Fact]
+    public async Task Submit_AdminEmail_DoesNotLinkAsMember()
+    {
+        var repo = new InMemoryFeedbackRepo();
+        var admin = new UserRecord(
+            Guid.NewGuid(),
+            "+919988776655",
+            true,
+            "ops@example.com",
+            true,
+            "Admin",
+            true,
+            false,
+            false,
+            false,
+            ["admin"]);
+        var service = CreateService(repo, users: new FeedbackUserLookup(admin));
+
+        var result = await service.SubmitAsync(
+            new SubmitFeedbackRequest(
+                "Ops",
+                "ops@example.com",
+                "Not a member grievance."),
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.False(result.IsExistingUser);
+        Assert.Null(repo.All[0].MemberId);
     }
 
     [Fact]
@@ -80,6 +115,44 @@ public class FeedbackServiceTests
                 CancellationToken.None));
 
         Assert.Equal("feedback_message_too_long", ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task List_ReturnsNewestFirstWithMessage()
+    {
+        var repo = new InMemoryFeedbackRepo();
+        var older = new FeedbackSubmissionRecord(
+            Guid.NewGuid(),
+            "Ada",
+            "first@example.com",
+            "+919876543210",
+            "Older grievance",
+            null,
+            null,
+            false,
+            null,
+            DateTimeOffset.UtcNow.AddMinutes(-1));
+        var memberId = Guid.NewGuid();
+        var newer = older with
+        {
+            Id = Guid.NewGuid(),
+            Email = "second@example.com",
+            Message = "Newer grievance",
+            IsExistingUser = true,
+            MemberId = memberId,
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+        await repo.AddAsync(older, CancellationToken.None);
+        await repo.AddAsync(newer, CancellationToken.None);
+
+        var service = CreateService(repo);
+        var page = await service.ListAsync(new PagedQuery(), CancellationToken.None);
+
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equal("Newer grievance", page.Items[0].Message);
+        Assert.Equal("second@example.com", page.Items[0].Email);
+        Assert.True(page.Items[0].IsExistingUser);
+        Assert.Equal(memberId, page.Items[0].MemberId);
     }
 
     private static FeedbackService CreateService(
@@ -124,10 +197,17 @@ file sealed class FeedbackUserLookup(UserRecord? match) : IUserRepository
     public Task<UserRecord?> FindByIdAsync(Guid userId, CancellationToken cancellationToken) =>
         Task.FromResult<UserRecord?>(null);
 
-    public Task<UserRecord> CreateMemberAsync(string phoneE164, string? email, CancellationToken cancellationToken) =>
+    public Task<UserRecord> CreateMemberAsync(
+        string phoneE164,
+        string? email,
+        string? password,
+        CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
     public Task MarkPhoneConfirmedAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
+    public Task MarkEmailConfirmedAsync(Guid userId, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
     public Task<string> GenerateEmailConfirmationTokenAsync(Guid userId, CancellationToken cancellationToken) =>
@@ -147,6 +227,68 @@ file sealed class FeedbackUserLookup(UserRecord? match) : IUserRepository
 
     public Task ActivateMemberAsync(Guid userId, CancellationToken cancellationToken) =>
         Task.CompletedTask;
+
+    public Task RestrictMemberAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
+    public Task UnrestrictMemberAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
+    public Task<bool> HasPasswordAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult(false);
+
+    public Task SetPasswordAsync(
+        Guid userId,
+        string password,
+        string? currentPassword,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<PasswordCheckResult> CheckPasswordAsync(
+        Guid userId,
+        string password,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task ResetPasswordAsync(Guid userId, string newPassword, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public Task<bool> AnyAdminExistsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(false);
+
+    public Task<(IReadOnlyList<UserRecord> Items, int TotalCount)> ListAdminsPageAsync(
+        int skip,
+        int take,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<(IReadOnlyList<UserRecord>, int)>(([], 0));
+
+    public Task<(IReadOnlyList<MemberAdminRecord> Items, int TotalCount)> ListMembersPageAsync(
+        int skip,
+        int take,
+        string? search,
+        bool? isActive,
+        bool? isRestricted,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<(IReadOnlyList<MemberAdminRecord>, int)>(([], 0));
+
+    public Task<MemberAdminRecord?> FindMemberAdminAsync(
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<MemberAdminRecord?>(null);
+
+    public Task<int> CountActiveAdminsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(0);
+
+    public Task<int> CountActiveSuperAdminsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(0);
+
+    public Task<UserRecord> CreateAdminAsync(
+        string email,
+        string? phoneE164,
+        string password,
+        CancellationToken cancellationToken,
+        bool isSuperAdmin = false) =>
+        throw new NotSupportedException();
 }
 
 file sealed class InMemoryFeedbackRepo : IFeedbackSubmissionRepository
@@ -159,5 +301,15 @@ file sealed class InMemoryFeedbackRepo : IFeedbackSubmissionRepository
     {
         All.Add(feedback);
         return Task.FromResult(feedback);
+    }
+
+    public Task<(IReadOnlyList<FeedbackSubmissionRecord> Items, int TotalCount)> ListPageAsync(
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var ordered = All.OrderByDescending(x => x.CreatedAtUtc).ToList();
+        return Task.FromResult<(IReadOnlyList<FeedbackSubmissionRecord>, int)>(
+            (ordered.Skip(skip).Take(take).ToList(), ordered.Count));
     }
 }

@@ -9,4 +9,5 @@ public sealed record FeedbackSubmissionRecord(
     string? ClientIp,
     string? UserAgent,
     bool IsExistingUser,
+    Guid? MemberId,
     DateTimeOffset CreatedAtUtc);

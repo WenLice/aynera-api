@@ -22,6 +22,24 @@ public interface IAuthService
         VerifyMemberOtpRequest request,
         CancellationToken cancellationToken);
 
+    Task<TokenResponse> LoginWithPasswordAsync(
+        MemberPasswordLoginRequest request,
+        CancellationToken cancellationToken);
+
+    Task SetPasswordAsync(
+        Guid userId,
+        SetMemberPasswordRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RequestMemberOtpResponse> RequestPasswordResetAsync(
+        ForgotMemberPasswordRequest request,
+        string? clientIp,
+        CancellationToken cancellationToken);
+
+    Task<TokenResponse> ResetPasswordAsync(
+        ResetMemberPasswordRequest request,
+        CancellationToken cancellationToken);
+
     Task<TokenResponse> RefreshTokenAsync(
         RefreshTokenRequest request,
         CancellationToken cancellationToken);

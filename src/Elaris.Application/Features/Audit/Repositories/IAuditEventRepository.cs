@@ -16,4 +16,14 @@ public interface IAuditEventRepository
         IReadOnlyDictionary<string, AuditFieldChange>? changes,
         object? metadata,
         CancellationToken cancellationToken);
+
+    /// <param name="actions">When null or empty, do not filter by action.</param>
+    Task<(IReadOnlyList<AuditEventAdminRecord> Items, int TotalCount)> ListPageAsync(
+        int skip,
+        int take,
+        IReadOnlyList<string>? actions,
+        Guid? subjectUserId,
+        string? subjectType,
+        string? subjectId,
+        CancellationToken cancellationToken);
 }

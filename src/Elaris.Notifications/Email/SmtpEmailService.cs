@@ -25,6 +25,42 @@ public sealed class SmtpEmailService : IEmailService
         string verifyUrl,
         CancellationToken cancellationToken)
     {
+        await SendPlainTextAsync(
+            email,
+            "Confirm your ElAris email",
+            string.Join(
+                Environment.NewLine,
+                "Confirm your ElAris email by opening this link:",
+                verifyUrl,
+                string.Empty,
+                "If you did not create an account, you can ignore this message."),
+            cancellationToken);
+
+        _logger.LogInformation("SMTP email verification dispatched (address and link not logged).");
+    }
+
+    public async Task SendOtpAsync(string email, string code, CancellationToken cancellationToken)
+    {
+        await SendPlainTextAsync(
+            email,
+            "Your ElAris verification code",
+            string.Join(
+                Environment.NewLine,
+                "Your ElAris verification code:",
+                code,
+                string.Empty,
+                "If you did not request this, you can ignore this message."),
+            cancellationToken);
+
+        _logger.LogInformation("SMTP email OTP dispatched (code and address not logged).");
+    }
+
+    private async Task SendPlainTextAsync(
+        string email,
+        string subject,
+        string body,
+        CancellationToken cancellationToken)
+    {
         if (string.IsNullOrWhiteSpace(_options.SmtpHost))
         {
             throw new InvalidOperationException("SMTP host is not configured.");
@@ -38,16 +74,8 @@ public sealed class SmtpEmailService : IEmailService
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(_options.FromDisplayName, _options.FromAddress.Trim()));
         message.To.Add(MailboxAddress.Parse(email.Trim()));
-        message.Subject = "Confirm your ElAris email";
-        message.Body = new TextPart("plain")
-        {
-            Text = string.Join(
-                Environment.NewLine,
-                "Confirm your ElAris email by opening this link:",
-                verifyUrl,
-                string.Empty,
-                "If you did not create an account, you can ignore this message.")
-        };
+        message.Subject = subject;
+        message.Body = new TextPart("plain") { Text = body };
 
         using var client = new SmtpClient();
         var secure =
@@ -67,7 +95,5 @@ public sealed class SmtpEmailService : IEmailService
 
         await client.SendAsync(message, cancellationToken);
         await client.DisconnectAsync(true, cancellationToken);
-
-        _logger.LogInformation("SMTP email verification dispatched (address and link not logged).");
     }
 }

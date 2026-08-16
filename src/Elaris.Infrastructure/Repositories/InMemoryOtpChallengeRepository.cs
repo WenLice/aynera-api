@@ -12,7 +12,7 @@ namespace Elaris.Infrastructure.Repositories;
 public sealed class InMemoryOtpChallengeRepository : IOtpChallengeRepository
 {
     private readonly ConcurrentDictionary<string, (OtpChallenge Challenge, DateTimeOffset ExpiresAt)> _challenges = new();
-    private readonly ConcurrentDictionary<string, (int Count, DateTimeOffset WindowStart)> _phoneLimits = new();
+    private readonly ConcurrentDictionary<string, (int Count, DateTimeOffset WindowStart)> _identifierLimits = new();
     private readonly ConcurrentDictionary<string, (int Count, DateTimeOffset WindowStart)> _ipLimits = new();
     private readonly OtpOptions _options;
 
@@ -22,13 +22,18 @@ public sealed class InMemoryOtpChallengeRepository : IOtpChallengeRepository
     }
 
     public Task<(bool Allowed, int? RetryAfterSeconds)> TryAcquireRequestSlotAsync(
-        string phoneE164,
+        string channel,
+        string destination,
         string? clientIp,
         CancellationToken cancellationToken)
     {
-        if (!TryIncrement(_phoneLimits, phoneE164, _options.MaxRequestsPerPhonePerHour, out var phoneRetry))
+        if (!TryIncrement(
+                _identifierLimits,
+                RateLimitKey(channel, destination),
+                _options.MaxRequestsPerPhonePerHour,
+                out var identifierRetry))
         {
-            return Task.FromResult<(bool, int?)>((false, phoneRetry));
+            return Task.FromResult<(bool, int?)>((false, identifierRetry));
         }
 
         if (!string.IsNullOrWhiteSpace(clientIp)
@@ -42,54 +47,62 @@ public sealed class InMemoryOtpChallengeRepository : IOtpChallengeRepository
 
     public Task StoreAsync(OtpChallenge challenge, TimeSpan ttl, CancellationToken cancellationToken)
     {
-        _challenges[challenge.PhoneE164] = (challenge, DateTimeOffset.UtcNow.Add(ttl));
+        _challenges[ChallengeKey(challenge.Channel, challenge.Destination)] = (challenge, DateTimeOffset.UtcNow.Add(ttl));
         return Task.CompletedTask;
     }
 
-    public Task<OtpChallenge?> GetAsync(string phoneE164, CancellationToken cancellationToken)
+    public Task<OtpChallenge?> GetAsync(string channel, string destination, CancellationToken cancellationToken)
     {
-        if (!_challenges.TryGetValue(phoneE164, out var entry))
+        if (!_challenges.TryGetValue(ChallengeKey(channel, destination), out var entry))
         {
             return Task.FromResult<OtpChallenge?>(null);
         }
 
         if (entry.ExpiresAt <= DateTimeOffset.UtcNow)
         {
-            _challenges.TryRemove(phoneE164, out _);
+            _challenges.TryRemove(ChallengeKey(channel, destination), out _);
             return Task.FromResult<OtpChallenge?>(null);
         }
 
         return Task.FromResult<OtpChallenge?>(entry.Challenge);
     }
 
-    public async Task<bool> IncrementAttemptsAsync(string phoneE164, CancellationToken cancellationToken)
+    public async Task<bool> IncrementAttemptsAsync(
+        string channel,
+        string destination,
+        CancellationToken cancellationToken)
     {
-        var challenge = await GetAsync(phoneE164, cancellationToken);
+        var challenge = await GetAsync(channel, destination, cancellationToken);
         if (challenge is null)
         {
             return false;
         }
 
         var updated = challenge with { Attempts = challenge.Attempts + 1 };
+        var key = ChallengeKey(channel, destination);
         if (updated.Attempts >= _options.MaxAttempts)
         {
-            await RemoveAsync(phoneE164, cancellationToken);
+            await RemoveAsync(channel, destination, cancellationToken);
             return false;
         }
 
-        if (_challenges.TryGetValue(phoneE164, out var entry))
+        if (_challenges.TryGetValue(key, out var entry))
         {
-            _challenges[phoneE164] = (updated, entry.ExpiresAt);
+            _challenges[key] = (updated, entry.ExpiresAt);
         }
 
         return true;
     }
 
-    public Task RemoveAsync(string phoneE164, CancellationToken cancellationToken)
+    public Task RemoveAsync(string channel, string destination, CancellationToken cancellationToken)
     {
-        _challenges.TryRemove(phoneE164, out _);
+        _challenges.TryRemove(ChallengeKey(channel, destination), out _);
         return Task.CompletedTask;
     }
+
+    private static string ChallengeKey(string channel, string destination) => $"{channel}:{destination}";
+
+    private static string RateLimitKey(string channel, string destination) => $"{channel}:{destination}";
 
     private static bool TryIncrement(
         ConcurrentDictionary<string, (int Count, DateTimeOffset WindowStart)> map,

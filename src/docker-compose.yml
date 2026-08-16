@@ -27,9 +27,8 @@ services:
       ELARIS_REDIS: redis:6379
       ELARIS_JWT_SIGNING_KEY: dev-only-elaris-jwt-signing-key-change-in-prod-32chars
       ELARIS_JWT_ISSUER: elaris-api
-      ELARIS_JWT_AUDIENCE_MEMBER_WEB: member-web
-      ELARIS_JWT_AUDIENCE_MEMBER_MOBILE: member-mobile
-      ELARIS_JWT_AUDIENCE_STAFF: staff
+      ELARIS_JWT_AUDIENCE_MEMBER: member
+      ELARIS_JWT_AUDIENCE_ADMIN: admin
     ports:
       - "8080:8080"
     depends_on:

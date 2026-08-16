@@ -77,7 +77,7 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "ElAris API",
         Version = "v1",
-        Description = "REST API for ElAris (member-web auth first; more features later)."
+        Description = "REST API for ElAris (member app and admin site auth)."
     });
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme

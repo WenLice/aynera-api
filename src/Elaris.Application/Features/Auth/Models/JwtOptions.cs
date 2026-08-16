@@ -8,33 +8,25 @@ public sealed class JwtOptions
 
     public string Issuer { get; set; } = "elaris-api";
     public string SigningKey { get; set; } = string.Empty;
-    public int AccessTokenLifetimeMinutes { get; set; } = 15;
-    public string AudienceMemberWeb { get; set; } = AuthAudiences.MemberWeb;
-    public string AudienceMemberMobile { get; set; } = AuthAudiences.MemberMobile;
-    public string AudienceStaff { get; set; } = AuthAudiences.Staff;
-    public int MemberWebRefreshDays { get; set; } = 30;
-    public int MemberMobileRefreshDays { get; set; } = 90;
-    public int StaffRefreshDays { get; set; } = 7;
+    public int AccessTokenLifetimeMinutes { get; set; } = 60;
+    public string AudienceMember { get; set; } = AuthAudiences.Member;
+    public string AudienceAdmin { get; set; } = AuthAudiences.Admin;
+    public int MemberRefreshDays { get; set; } = 90;
+    public int AdminRefreshHours { get; set; } = 24;
 
     public IReadOnlyList<string> AllAudiences =>
     [
-        AudienceMemberWeb,
-        AudienceMemberMobile,
-        AudienceStaff
+        AudienceMember,
+        AudienceAdmin
     ];
 
-    public int RefreshDaysForAudience(string audience)
+    public TimeSpan RefreshLifetimeForAudience(string audience)
     {
-        if (string.Equals(audience, AudienceMemberMobile, StringComparison.Ordinal))
+        if (string.Equals(audience, AudienceAdmin, StringComparison.Ordinal))
         {
-            return MemberMobileRefreshDays;
+            return TimeSpan.FromHours(AdminRefreshHours);
         }
 
-        if (string.Equals(audience, AudienceStaff, StringComparison.Ordinal))
-        {
-            return StaffRefreshDays;
-        }
-
-        return MemberWebRefreshDays;
+        return TimeSpan.FromDays(MemberRefreshDays);
     }
 }

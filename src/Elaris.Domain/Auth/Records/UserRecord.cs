@@ -10,4 +10,6 @@ public sealed record UserRecord(
     string AccountKind,
     bool IsActive,
     bool IsDeleted,
+    bool IsSuperAdmin,
+    bool IsRestricted,
     IReadOnlyList<string> Roles);

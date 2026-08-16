@@ -43,8 +43,10 @@ public sealed class UsersController : BaseController
     /// Blocked if an active or deactivated account already uses that phone.
     /// Soft-deleted accounts do not block — a new account id is created.
     /// Sends an email verification link automatically. <c>emailConfirmed</c> stays false until Auth VerifyEmail.
-    /// The link opens member-web (or a landing page); that page should POST to <c>/auth/verifyemail</c> with userId + token.
-    /// Does not issue tokens; call Auth Login then VerifySms to confirm the phone and sign in.
+    /// The link opens the member app (or a landing page); that page should POST to <c>/auth/verifyemail</c> with userId + token.
+    /// Does not issue tokens; call Auth Login then VerifySms to confirm the phone or email and sign in,
+    /// or Auth Password if a password was provided.
+    /// Optional <c>password</c>: at least 8 characters with a lowercase letter and a number.
     /// </remarks>
     [HttpPost("register")]
     [AllowAnonymous]
@@ -71,6 +73,22 @@ public sealed class UsersController : BaseController
     {
         var account = await _authService.GetMeAsync(CurrentUser.UserId!.Value, cancellationToken);
         return OkResponse(account);
+    }
+
+    /// <summary>SetPassword</summary>
+    /// <remarks>
+    /// Sets a password on the authenticated member if none exists, or changes it when <c>currentPassword</c> is supplied.
+    /// </remarks>
+    [HttpPost("me/password")]
+    [Authorize(Policy = "Member")]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<object?>>> SetPassword(
+        [FromBody] SetMemberPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _authService.SetPasswordAsync(CurrentUser.UserId!.Value, request, cancellationToken);
+        return OkResponse();
     }
 
     /// <summary>UploadPhotos</summary>

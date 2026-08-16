@@ -2,14 +2,17 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Elaris.Application.Features.Auth.Repositories;
 using Elaris.Application.Features.Auth.Services.Interfaces;
 using Elaris.Domain.Auth.Requests;
 using Elaris.Domain.Auth.Responses;
 using Elaris.Domain.Auth.Enums;
 using Elaris.Domain.Common;
 using Elaris.Domain.Photos.Responses;
+using Elaris.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -123,7 +126,10 @@ public class AuthEndpointsTests
         _factory = factory;
     }
 
-    private static CreateMemberRequest RegisterBody(string phone, string email = "member@example.com") =>
+    private static CreateMemberRequest RegisterBody(
+        string phone,
+        string email = "member@example.com",
+        string? password = null) =>
         new(
             phone,
             "Ada",
@@ -132,7 +138,8 @@ public class AuthEndpointsTests
             new DateOnly(1990, 5, 15),
             "Mumbai",
             email,
-            "Hindu");
+            "Hindu",
+            password);
 
     [Fact]
     public async Task RegisterLoginVerifySmsMe_RoundTrip()
@@ -415,5 +422,195 @@ public class AuthEndpointsTests
         var emptyList = await client.GetAsync("/users/me/photos");
         var afterDelete = await emptyList.Content.ReadFromJsonAsync<ApiResponse<List<MemberPhotoDto>>>(JsonOptions);
         Assert.Empty(afterDelete!.Data!);
+    }
+
+    [Fact]
+    public async Task RegisterLoginVerifyEmailOtp_ConfirmsEmail()
+    {
+        var client = _factory.CreateClient();
+        var phone = "9000111222";
+        var email = "otp.email@example.com";
+
+        var registerResponse = await client.PostAsJsonAsync(
+            "/users/register",
+            RegisterBody(phone, email));
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+
+        var loginResponse = await client.PostAsJsonAsync(
+            "/auth/login",
+            new RequestMemberOtpRequest(email));
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+
+        var code = _factory.Email.GetOtpCode(email);
+        Assert.False(string.IsNullOrWhiteSpace(code));
+
+        var verifyResponse = await client.PostAsJsonAsync(
+            "/auth/verifysms",
+            new VerifyMemberOtpRequest(email, code!));
+        Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
+
+        var tokens = await verifyResponse.Content.ReadFromJsonAsync<ApiResponse<TokenResponse>>(JsonOptions);
+        Assert.True(tokens!.Data!.Account.EmailConfirmed);
+        Assert.False(tokens.Data.Account.PhoneConfirmed);
+    }
+
+    [Fact]
+    public async Task RegisterWithPassword_ThenPasswordLogin()
+    {
+        var client = _factory.CreateClient();
+        var phone = "9000222333";
+
+        var registerResponse = await client.PostAsJsonAsync(
+            "/users/register",
+            RegisterBody(phone, "pwd.login@example.com", "secret12"));
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+
+        var loginResponse = await client.PostAsJsonAsync(
+            "/auth/password",
+            new MemberPasswordLoginRequest(phone, "secret12"));
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+
+        var tokens = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<TokenResponse>>(JsonOptions);
+        Assert.False(string.IsNullOrWhiteSpace(tokens!.Data!.AccessToken));
+        Assert.Equal("+919000222333", tokens.Data.Account.Phone);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_Reset_ThenPasswordLogin()
+    {
+        var client = _factory.CreateClient();
+        var phone = "9000333444";
+
+        var registerResponse = await client.PostAsJsonAsync(
+            "/users/register",
+            RegisterBody(phone, "pwd.reset@example.com", "oldpass12"));
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+
+        var forgotResponse = await client.PostAsJsonAsync(
+            "/auth/password/forgot",
+            new ForgotMemberPasswordRequest(phone));
+        Assert.Equal(HttpStatusCode.OK, forgotResponse.StatusCode);
+
+        var code = _factory.Sms.GetCode("+919000333444");
+        Assert.False(string.IsNullOrWhiteSpace(code));
+
+        var resetResponse = await client.PostAsJsonAsync(
+            "/auth/password/reset",
+            new ResetMemberPasswordRequest(phone, code!, "newpass12"));
+        Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
+
+        var loginResponse = await client.PostAsJsonAsync(
+            "/auth/password",
+            new MemberPasswordLoginRequest(phone, "newpass12"));
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdminPasswordLogin_IssuesAdminTokens()
+    {
+        var email = "ops.admin@example.com";
+        var phone = "+919000555666";
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+            if (await users.FindByEmailAsync(email, CancellationToken.None) is null)
+            {
+                await users.CreateAdminAsync(email, phone, "adminpass12", CancellationToken.None);
+            }
+        }
+
+        var client = _factory.CreateClient();
+        var loginResponse = await client.PostAsJsonAsync(
+            "/admin/password",
+            new AdminPasswordLoginRequest(email, "adminpass12"));
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+
+        var tokens = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<TokenResponse>>(JsonOptions);
+        Assert.Equal("Admin", tokens!.Data!.Account.AccountKind);
+        Assert.Contains("admin", tokens.Data.Account.Roles);
+        Assert.False(tokens.Data.Account.IsSuperAdmin);
+
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", tokens.Data.AccessToken);
+
+        var meResponse = await client.GetAsync("/admin/me");
+        Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);
+        var me = await meResponse.Content.ReadFromJsonAsync<ApiResponse<AuthAccountDto>>(JsonOptions);
+        Assert.Equal("Admin", me!.Data!.AccountKind);
+        Assert.Equal(email, me.Data.Email);
+        Assert.False(me.Data.IsSuperAdmin);
+        Assert.Null(me.Data.Profile);
+    }
+
+    [Fact]
+    public async Task SuperAdmin_CanCreateAnotherAdmin()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var superEmail = $"super.{suffix}@example.com";
+        var phoneStamp = Math.Abs(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)) % 100_000_000;
+        var superPhone = $"+9198{phoneStamp:D8}";
+        var createdEmail = $"created.{suffix}@example.com";
+
+        Guid superId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+            var super = await users.CreateAdminAsync(
+                superEmail,
+                superPhone,
+                "adminpass12",
+                CancellationToken.None);
+            superId = super.Id;
+        }
+
+        await MarkSuperAdminAsync(superId);
+
+        var client = _factory.CreateClient();
+        var loginResponse = await client.PostAsJsonAsync(
+            "/admin/password",
+            new AdminPasswordLoginRequest(superEmail, "adminpass12"));
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+
+        var tokens = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<TokenResponse>>(JsonOptions);
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", tokens!.Data!.AccessToken);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/admin/admins",
+            new CreateAdminRequest(createdEmail, "created12"));
+        Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
+
+        var created = await createResponse.Content.ReadFromJsonAsync<ApiResponse<AuthAccountDto>>(JsonOptions);
+        Assert.Equal("Admin", created!.Data!.AccountKind);
+        Assert.False(created.Data.IsSuperAdmin);
+        Assert.Equal(createdEmail, created.Data.Email);
+    }
+
+    private async Task MarkSuperAdminAsync(Guid userId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ElarisDbContext>();
+        var user = await db.Users.SingleAsync(u => u.Id == userId);
+        user.IsSuperAdmin = true;
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task AdminOtp_RejectsRegisteredMember()
+    {
+        var client = _factory.CreateClient();
+        var phone = "9000666777";
+        var registerResponse = await client.PostAsJsonAsync(
+            "/users/register",
+            RegisterBody(phone, "member.not.admin@example.com"));
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+
+        var loginResponse = await client.PostAsJsonAsync(
+            "/admin/otp/request",
+            new RequestAdminOtpRequest(phone));
+        Assert.Equal(HttpStatusCode.NotFound, loginResponse.StatusCode);
+
+        var fail = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<object?>>(JsonOptions);
+        Assert.Equal("user_not_found", fail!.ErrorCode);
     }
 }

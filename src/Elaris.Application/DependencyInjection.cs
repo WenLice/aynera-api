@@ -20,7 +20,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddElarisApplication(this IServiceCollection services)
     {
-        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<AuthService>();
+        services.AddScoped<IAuthService>(sp => sp.GetRequiredService<AuthService>());
+        services.AddScoped<IAdminAuthService>(sp => sp.GetRequiredService<AuthService>());
         services.AddScoped<IPhotoService, PhotoService>();
         services.AddScoped<IIntroductionVideoService, IntroductionVideoService>();
         services.AddScoped<IEarlyAccessService, EarlyAccessService>();
@@ -29,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<ISuggestionService, SuggestionService>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IAuditLogWriter, AuditLogWriter>();
+        services.AddScoped<IAuditAdminService, AuditAdminService>();
         services.AddSingleton<ISpeechGuidelineService, BannedWordsGuidelineService>();
         return services;
     }

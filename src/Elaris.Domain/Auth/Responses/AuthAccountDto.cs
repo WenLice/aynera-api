@@ -9,5 +9,7 @@ public sealed record AuthAccountDto(
     string AccountKind,
     bool IsActive,
     bool IsDeleted,
+    bool IsSuperAdmin,
+    bool IsRestricted,
     IReadOnlyList<string> Roles,
     MemberProfileDto? Profile);

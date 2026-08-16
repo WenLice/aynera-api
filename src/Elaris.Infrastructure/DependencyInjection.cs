@@ -29,6 +29,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 
 namespace Elaris.Infrastructure;
@@ -64,11 +66,16 @@ public static class DependencyInjection
         {
             configuration.GetSection(JwtOptions.SectionName).Bind(options);
             options.Issuer = configuration["ELARIS_JWT_ISSUER"] ?? options.Issuer;
-            options.AudienceMemberWeb = configuration["ELARIS_JWT_AUDIENCE_MEMBER_WEB"] ?? options.AudienceMemberWeb;
-            options.AudienceMemberMobile =
-                configuration["ELARIS_JWT_AUDIENCE_MEMBER_MOBILE"] ?? options.AudienceMemberMobile;
-            options.AudienceStaff = configuration["ELARIS_JWT_AUDIENCE_STAFF"] ?? options.AudienceStaff;
+            options.AudienceMember = configuration["ELARIS_JWT_AUDIENCE_MEMBER"] ?? options.AudienceMember;
+            options.AudienceAdmin = configuration["ELARIS_JWT_AUDIENCE_ADMIN"] ?? options.AudienceAdmin;
             options.SigningKey = configuration["ELARIS_JWT_SIGNING_KEY"] ?? options.SigningKey;
+        });
+        services.Configure<AdminSeedOptions>(options =>
+        {
+            configuration.GetSection(AdminSeedOptions.SectionName).Bind(options);
+            options.Email = configuration["ELARIS_ADMIN_EMAIL"] ?? options.Email;
+            options.Phone = configuration["ELARIS_ADMIN_PHONE"] ?? options.Phone;
+            options.Password = configuration["ELARIS_ADMIN_PASSWORD"] ?? options.Password;
         });
         services.Configure<OtpOptions>(configuration.GetSection(OtpOptions.SectionName));
         services.Configure<PhotoOptions>(configuration.GetSection(PhotoOptions.SectionName));
@@ -122,6 +129,7 @@ public static class DependencyInjection
         services.AddSingleton<IVideoFrameExtractor, StubVideoFrameExtractor>();
         services.AddSingleton<ISpeechTranscriptionService, StubSpeechTranscriptionService>();
         services.AddHostedService<RoleSeedHostedService>();
+        services.AddHostedService<AdminSeedHostedService>();
         services.AddHostedService<EarlyAccessCitySeedHostedService>();
 
         var jwtSection = configuration.GetSection(JwtOptions.SectionName);
@@ -129,9 +137,8 @@ public static class DependencyInjection
         var issuer = configuration["ELARIS_JWT_ISSUER"] ?? jwtSection["Issuer"] ?? "elaris-api";
         var audiences = new[]
         {
-            configuration["ELARIS_JWT_AUDIENCE_MEMBER_WEB"] ?? jwtSection["AudienceMemberWeb"] ?? "member-web",
-            configuration["ELARIS_JWT_AUDIENCE_MEMBER_MOBILE"] ?? jwtSection["AudienceMemberMobile"] ?? "member-mobile",
-            configuration["ELARIS_JWT_AUDIENCE_STAFF"] ?? jwtSection["AudienceStaff"] ?? "staff"
+            configuration["ELARIS_JWT_AUDIENCE_MEMBER"] ?? jwtSection["AudienceMember"] ?? AuthAudiences.Member,
+            configuration["ELARIS_JWT_AUDIENCE_ADMIN"] ?? jwtSection["AudienceAdmin"] ?? AuthAudiences.Admin
         };
 
         services
@@ -156,11 +163,30 @@ public static class DependencyInjection
         services.AddAuthorization(options =>
         {
             options.AddPolicy("Member", policy =>
-                policy.RequireAuthenticatedUser().RequireRole(AuthRoles.Member));
-            options.AddPolicy("Staff", policy =>
-                policy.RequireAuthenticatedUser().RequireRole(AuthRoles.Staff));
+                policy.RequireAuthenticatedUser()
+                    .RequireRole(AuthRoles.Member)
+                    .RequireAssertion(ctx => HasJwtAudience(ctx.User, AuthAudiences.Member)));
+            options.AddPolicy("Admin", policy =>
+                policy.RequireAuthenticatedUser()
+                    .RequireRole(AuthRoles.Admin)
+                    .RequireAssertion(ctx => HasJwtAudience(ctx.User, AuthAudiences.Admin)));
         });
 
         return services;
+    }
+
+    private static bool HasJwtAudience(ClaimsPrincipal user, string audience)
+    {
+        foreach (var claim in user.Claims)
+        {
+            if ((claim.Type is JwtRegisteredClaimNames.Aud or "aud"
+                    or "http://schemas.microsoft.com/identity/claims/audience")
+                && string.Equals(claim.Value, audience, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
