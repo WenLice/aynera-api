@@ -2,6 +2,7 @@ using Aynera.Application.Features.Admissions.Models;
 using Aynera.Application.Features.Admissions.Repositories;
 using Aynera.Application.Features.Admissions.Services.Interfaces;
 using Aynera.Application.Features.Auth.Repositories;
+using Aynera.Application.Features.Preferences.Repositories;
 using Aynera.Application.Features.Profiles.Repositories;
 using Aynera.Domain.Admissions.Enums;
 using Aynera.Domain.Admissions.Responses;
@@ -20,6 +21,7 @@ public sealed class MemberEligibilityEvaluator : IMemberEligibilityEvaluator
 {
     private readonly IUserRepository _users;
     private readonly IMemberProfileRepository _profiles;
+    private readonly IMemberPreferencesRepository _preferences;
     private readonly IMemberAdmissionRepository _admissions;
     private readonly IMemberConsentRepository _consents;
     private readonly IMemberIdentityEvidenceRepository _identity;
@@ -28,6 +30,7 @@ public sealed class MemberEligibilityEvaluator : IMemberEligibilityEvaluator
     public MemberEligibilityEvaluator(
         IUserRepository users,
         IMemberProfileRepository profiles,
+        IMemberPreferencesRepository preferences,
         IMemberAdmissionRepository admissions,
         IMemberConsentRepository consents,
         IMemberIdentityEvidenceRepository identity,
@@ -35,6 +38,7 @@ public sealed class MemberEligibilityEvaluator : IMemberEligibilityEvaluator
     {
         _users = users;
         _profiles = profiles;
+        _preferences = preferences;
         _admissions = admissions;
         _consents = consents;
         _identity = identity;
@@ -98,6 +102,13 @@ public sealed class MemberEligibilityEvaluator : IMemberEligibilityEvaluator
         else if (!AdmissionValidation.IsAtLeastMinimumAge(profile.DateOfBirth, Today))
         {
             unmet.Add(EligibilityReasons.Underage);
+        }
+
+        // Without preferences there is nothing to run the §6 hard filters against, so no
+        // introduction could be made even for an approved member.
+        if (await _preferences.FindByUserIdAsync(userId, cancellationToken) is null)
+        {
+            unmet.Add(EligibilityReasons.PreferencesMissing);
         }
 
         var accepted = await _consents.ListByUserIdAsync(userId, cancellationToken);

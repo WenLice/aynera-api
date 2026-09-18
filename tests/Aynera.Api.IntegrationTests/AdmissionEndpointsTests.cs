@@ -8,6 +8,7 @@ using Aynera.Domain.Admissions.Requests;
 using Aynera.Domain.Admissions.Responses;
 using Aynera.Domain.Admissions.Validators;
 using Aynera.Domain.Audit.Statics;
+using Aynera.Domain.Preferences.Enums;
 using Aynera.Domain.Auth.Enums;
 using Aynera.Domain.Auth.Statics;
 using Aynera.Domain.Common;
@@ -253,6 +254,16 @@ public sealed class AdmissionEndpointsTests(AuthApiFactory factory)
                 DateOfBirth = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-25),
                 City = delhi.Name,
                 CityId = delhi.Id
+            });
+            // Submitting also requires preferences, so a fixture with a profile gets both.
+            db.MemberPreferences.Add(new MemberPreferences
+            {
+                UserId = user.Id,
+                InterestedIn = InterestedIn.Everyone,
+                MinAge = 24,
+                MaxAge = 32,
+                AgeIsFlexible = false,
+                IntentOutcome = IntentOutcome.Prospect
             });
             await db.SaveChangesAsync();
         }

@@ -28,21 +28,23 @@ public class MemberAdmissionServiceTests
         public CapturingAuditWriter Audit { get; } = new();
         public AdmissionOptions Options { get; } = new();
         public static readonly Guid DelhiId = Guid.NewGuid();
+        public FakeMemberPreferencesRepository Preferences { get; } = new();
         public MemberEligibilityEvaluator Evaluator { get; }
         public MemberAdmissionService Service { get; }
 
         public Harness()
         {
             Evaluator = new MemberEligibilityEvaluator(
-                Users, Profiles, Admissions, Consents, Identity, Microsoft.Extensions.Options.Options.Create(Options));
+                Users, Profiles, Preferences, Admissions, Consents, Identity, Microsoft.Extensions.Options.Options.Create(Options));
             Service = new MemberAdmissionService(
-                Admissions, Consents, Profiles, Users, Evaluator, new PassThroughTransaction(),
+                Admissions, Consents, Profiles, Preferences, Users, Evaluator, new PassThroughTransaction(),
                 Audit, DiscardLogger<MemberAdmissionService>.Instance);
         }
 
         public Guid AddMember(
             bool active = true, bool restricted = false, bool deleted = false,
-            bool phoneConfirmed = true, bool emailConfirmed = true, bool withProfile = true, DateOnly? dob = null)
+            bool phoneConfirmed = true, bool emailConfirmed = true, bool withProfile = true,
+            bool withPreferences = true, DateOnly? dob = null)
         {
             var id = Guid.NewGuid();
             Users.Add(new UserRecord(id, "+919" + Random.Shared.NextInt64(100_000_000, 999_999_999), phoneConfirmed,
@@ -50,6 +52,11 @@ public class MemberAdmissionServiceTests
             if (withProfile)
             {
                 Profiles.Set(new MemberProfileRecord(id, "Asha Rao", "Female", dob ?? AdultDob, "Delhi", DelhiId));
+            }
+
+            if (withPreferences)
+            {
+                Preferences.Set(id);
             }
 
             return id;
@@ -155,6 +162,28 @@ public class MemberAdmissionServiceTests
         var ex = await Assert.ThrowsAsync<AdmissionException>(() => h.Service.SubmitAsync(member, CancellationToken.None));
 
         Assert.Equal("admission_profile_required", ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Submit_WithoutPreferences_Throws()
+    {
+        var h = new Harness();
+        var member = h.AddMember(withPreferences: false);
+
+        var ex = await Assert.ThrowsAsync<AdmissionException>(() => h.Service.SubmitAsync(member, CancellationToken.None));
+
+        Assert.Equal("admission_preferences_required", ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Eligibility_WithoutPreferences_ReportsPreferencesMissing()
+    {
+        var h = new Harness();
+        var member = h.AddMember(withPreferences: false);
+
+        var dto = await h.Service.GetAsync(member, CancellationToken.None);
+
+        Assert.Contains(EligibilityReasons.PreferencesMissing, dto.Eligibility.UnmetRequirements);
     }
 
     [Fact]

@@ -61,7 +61,7 @@ public class AuthServiceTests
         var auth = new AuthService(otp, users, profiles, sessions, tokens, sms, email,
             mapper, audit, logger, otpOptions, jwtOptions, new TestWorkflowTransaction());
         var queue = new TestVerificationQueue();
-        Lifecycles.Add(auth, new AccountLifecycleService(users, profiles, photos, videos, sessions, audit,
+        Lifecycles.Add(auth, new AccountLifecycleService(users, profiles, new FakeMemberPreferencesRepository(), photos, videos, sessions, audit,
             DiscardLogger<AccountLifecycleService>.Instance, new TestWorkflowTransaction(), queue,
             otp, sms, email, otpOptions, jwtOptions));
         Queues.Add(auth, queue);

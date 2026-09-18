@@ -15,6 +15,7 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
 
     public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
     public DbSet<MemberProfile> MemberProfiles => Set<MemberProfile>();
+    public DbSet<MemberPreferences> MemberPreferences => Set<MemberPreferences>();
     public DbSet<MemberAdmission> MemberAdmissions => Set<MemberAdmission>();
     public DbSet<MemberConsent> MemberConsents => Set<MemberConsent>();
     public DbSet<MemberPhoto> MemberPhotos => Set<MemberPhoto>();
@@ -104,6 +105,31 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
             entity.HasOne(x => x.User)
                 .WithOne(x => x.Profile)
                 .HasForeignKey<MemberProfile>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<MemberPreferences>(entity =>
+        {
+            entity.ToTable("MemberPreferences");
+            entity.HasKey(x => x.UserId);
+            entity.Property(x => x.InterestedIn)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(x => x.IntentOutcome)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(x => x.MinAge).IsRequired();
+            entity.Property(x => x.MaxAge).IsRequired();
+            entity.Property(x => x.AgeIsFlexible).IsRequired();
+            entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.HasIndex(x => x.IsDeleted);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            entity.HasOne(x => x.User)
+                .WithOne()
+                .HasForeignKey<MemberPreferences>(x => x.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

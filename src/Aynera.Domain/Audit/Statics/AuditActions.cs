@@ -4,6 +4,7 @@ public static class AuditActions
 {
     public const string MemberRegistered = "member_registered";
     public const string MemberProfileSaved = "member_profile_saved";
+    public const string MemberPreferencesSaved = "member_preferences_saved";
     public const string EmailConfirmed = "email_confirmed";
     public const string OtpRequested = "otp_requested";
     public const string OtpRequestFailed = "otp_request_failed";

@@ -1,6 +1,7 @@
 using Aynera.Application.Common;
 using Aynera.Application.Features.Admissions.Models;
 using Aynera.Application.Features.Admissions.Repositories;
+using Aynera.Application.Features.Preferences.Repositories;
 using Aynera.Application.Features.Profiles.Repositories;
 using Aynera.Infrastructure.Authorization;
 using Aynera.Application.Features.Audit.Repositories;
@@ -126,6 +127,7 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshSessionRepository, RefreshSessionRepository>();
         services.AddScoped<IMemberProfileRepository, MemberProfileRepository>();
+        services.AddScoped<IMemberPreferencesRepository, MemberPreferencesRepository>();
         services.AddScoped<IMemberPhotoRepository, MemberPhotoRepository>();
         services.AddScoped<IIntroductionVideoRepository, IntroductionVideoRepository>();
         services.AddScoped<IEarlyAccessSignupRepository, EarlyAccessSignupRepository>();

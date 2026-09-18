@@ -93,6 +93,7 @@ public static class EligibilityReasons
     public const string PhoneUnverified = "phone_unverified";
     public const string EmailUnverified = "email_unverified";
     public const string ProfileMissing = "profile_missing";
+    public const string PreferencesMissing = "preferences_missing";
     public const string Underage = "underage";
     public const string IdentityRejected = "identity_rejected";
 

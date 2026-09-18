@@ -3,6 +3,7 @@ using Aynera.Application.Features.Admissions.Repositories;
 using Aynera.Application.Features.Admissions.Services.Interfaces;
 using Aynera.Application.Features.Audit.Services.Interfaces;
 using Aynera.Application.Features.Auth.Repositories;
+using Aynera.Application.Features.Preferences.Repositories;
 using Aynera.Application.Features.Profiles.Repositories;
 using Aynera.Domain.Admissions.Enums;
 using Aynera.Domain.Admissions.Exceptions;
@@ -25,6 +26,7 @@ public sealed class MemberAdmissionService : IMemberAdmissionService
     private readonly IMemberAdmissionRepository _admissions;
     private readonly IMemberConsentRepository _consents;
     private readonly IMemberProfileRepository _profiles;
+    private readonly IMemberPreferencesRepository _preferences;
     private readonly IUserRepository _users;
     private readonly IMemberEligibilityEvaluator _eligibility;
     private readonly IWorkflowTransaction _transaction;
@@ -35,6 +37,7 @@ public sealed class MemberAdmissionService : IMemberAdmissionService
         IMemberAdmissionRepository admissions,
         IMemberConsentRepository consents,
         IMemberProfileRepository profiles,
+        IMemberPreferencesRepository preferences,
         IUserRepository users,
         IMemberEligibilityEvaluator eligibility,
         IWorkflowTransaction transaction,
@@ -44,6 +47,7 @@ public sealed class MemberAdmissionService : IMemberAdmissionService
         _admissions = admissions;
         _consents = consents;
         _profiles = profiles;
+        _preferences = preferences;
         _users = users;
         _eligibility = eligibility;
         _transaction = transaction;
@@ -82,6 +86,13 @@ public sealed class MemberAdmissionService : IMemberAdmissionService
                 ?? throw new AdmissionException(
                     "admission_profile_required",
                     "Complete your profile before submitting for review.");
+
+            // Preferences are required: an approved member with none could never be introduced,
+            // because the §6 hard filters would have nothing to evaluate them against.
+            _ = await _preferences.FindByUserIdAsync(userId, ct)
+                ?? throw new AdmissionException(
+                    "admission_preferences_required",
+                    "Choose who you'd like to meet before submitting for review.");
 
             if (!AdmissionValidation.IsAtLeastMinimumAge(profile.DateOfBirth, DateOnly.FromDateTime(DateTime.UtcNow)))
             {

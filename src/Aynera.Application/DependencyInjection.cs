@@ -1,5 +1,7 @@
 using Aynera.Application.Features.Admissions.Services.Implementations;
 using Aynera.Application.Features.Admissions.Services.Interfaces;
+using Aynera.Application.Features.Preferences.Services.Implementations;
+using Aynera.Application.Features.Preferences.Services.Interfaces;
 using Aynera.Application.Features.Users.Services.Implementations;
 using Aynera.Application.Features.Users.Services.Interfaces;
 using Aynera.Application.Features.Audit.Services.Implementations;
@@ -39,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IVenueService, VenueService>();
         services.AddScoped<IMemberEligibilityEvaluator, MemberEligibilityEvaluator>();
         services.AddScoped<IMemberAdmissionService, MemberAdmissionService>();
+        services.AddScoped<IMemberPreferencesService, MemberPreferencesService>();
         services.AddScoped<IFeedbackService, FeedbackService>();
         services.AddScoped<ISuggestionService, SuggestionService>();
         services.AddScoped<IAuditWriter, AuditWriter>();

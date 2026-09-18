@@ -6,6 +6,7 @@ using Aynera.Application.Features.Auth.Repositories;
 using Aynera.Application.Features.Auth.Services.Interfaces;
 using Microsoft.Extensions.Options;
 using Aynera.Application.Features.Photos.Repositories;
+using Aynera.Application.Features.Preferences.Repositories;
 using Aynera.Application.Features.Profiles.Repositories;
 using Aynera.Application.Features.Videos.Repositories;
 using Aynera.Application.Features.Users.Services.Interfaces;
@@ -51,7 +52,8 @@ public sealed class AccountDeactivationConsistencyTests(AuthApiFactory factory)
             }
             var service = new AccountLifecycleService(
                 Store<IUserRepository>("account", nameof(IUserRepository.DeactivateMemberAsync)),
-                sp.GetRequiredService<IMemberProfileRepository>(), sp.GetRequiredService<IMemberPhotoRepository>(),
+                sp.GetRequiredService<IMemberProfileRepository>(), sp.GetRequiredService<IMemberPreferencesRepository>(),
+                sp.GetRequiredService<IMemberPhotoRepository>(),
                 sp.GetRequiredService<IIntroductionVideoRepository>(),
                 Store<IRefreshSessionRepository>("sessions", nameof(IRefreshSessionRepository.RevokeAllForUserAsync)),
                 audit, sp.GetRequiredService<ILogger<AccountLifecycleService>>(),

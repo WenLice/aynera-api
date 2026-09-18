@@ -4,6 +4,7 @@ using Aynera.Application.Features.Auth.Repositories;
 using Aynera.Application.Features.Auth.Services.Interfaces;
 using Aynera.Application.Features.Audit.Services.Interfaces;
 using Aynera.Application.Features.Photos.Repositories;
+using Aynera.Application.Features.Preferences.Repositories;
 using Aynera.Application.Features.Profiles.Repositories;
 using Aynera.Application.Features.Users.Services.Interfaces;
 using Aynera.Application.Features.Videos.Repositories;
@@ -27,6 +28,7 @@ public sealed class AccountLifecycleService : IAccountLifecycleService
     private readonly IVerificationEmailQueue _emails;
     private readonly IUserRepository _users;
     private readonly IMemberProfileRepository _profiles;
+    private readonly IMemberPreferencesRepository _preferences;
     private readonly IMemberPhotoRepository _photos;
     private readonly IIntroductionVideoRepository _introductionVideos;
     private readonly IRefreshSessionRepository _refreshSessions;
@@ -41,6 +43,7 @@ public sealed class AccountLifecycleService : IAccountLifecycleService
     public AccountLifecycleService(
         IUserRepository users,
         IMemberProfileRepository profiles,
+        IMemberPreferencesRepository preferences,
         IMemberPhotoRepository photos,
         IIntroductionVideoRepository introductionVideos,
         IRefreshSessionRepository refreshSessions,
@@ -58,6 +61,7 @@ public sealed class AccountLifecycleService : IAccountLifecycleService
         _emails = emails;
         _users = users;
         _profiles = profiles;
+        _preferences = preferences;
         _photos = photos;
         _introductionVideos = introductionVideos;
         _refreshSessions = refreshSessions;
@@ -78,6 +82,7 @@ public sealed class AccountLifecycleService : IAccountLifecycleService
             // All stores use the transaction's scoped DbContext, including Identity writes.
             await _refreshSessions.SoftDeleteAllForUserAsync(userId, ct);
             await _profiles.SoftDeleteByUserIdAsync(userId, ct);
+            await _preferences.SoftDeleteByUserIdAsync(userId, ct);
             await _photos.SoftDeleteAllForUserAsync(userId, ct);
             await _introductionVideos.SoftDeleteByUserIdAsync(userId, ct);
             await _emails.CancelAsync(userId, ct);
