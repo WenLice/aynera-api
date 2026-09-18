@@ -122,7 +122,9 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
     [Theory]
     [InlineData("\"Female\"", "Female")]
     [InlineData("\"Other\"", "Other")]
+    [InlineData("\"PreferNotToSay\"", "PreferNotToSay")]
     [InlineData("1", "Female")]
+    [InlineData("3", "PreferNotToSay")]
     public async Task Gender_IsAcceptedByNameAndByNumber(string genderJson, string expected)
     {
         var client = await PhoneVerifiedClientAsync();

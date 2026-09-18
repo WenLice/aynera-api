@@ -41,7 +41,7 @@ public sealed class MembersController : BaseController
     /// <summary>Register</summary>
     /// <remarks>
     /// Creates a new member account and profile.
-    /// Required: phone, name, gender (Male|Female|Other), dateOfBirth (18+), city, email.
+    /// Required: phone, name, gender (Male|Female|Other|PreferNotToSay), dateOfBirth (18+), city, email.
     /// <c>city</c> must be an active city in the shared city catalog (<c>GET /early-access/cities/GetAll</c>);
     /// the canonical catalog name and its <c>cityId</c> are stored. Unknown or closed cities fail with <c>city_not_supported</c>.
     /// Optional: nickname, heightCm, hometown, work, religion. Photos are uploaded separately via Photos Upload.
@@ -160,7 +160,7 @@ public sealed class MembersController : BaseController
     /// Writes the authenticated member's basic details, creating the profile row on the first save
     /// (the app's registration path arrives here with a phone-verified account and no profile yet).
     /// A full replace, not a patch: omitted optional fields are cleared.
-    /// Required: name, gender (Male|Female|Other), dateOfBirth (18+), city.
+    /// Required: name, gender (Male|Female|Other|PreferNotToSay), dateOfBirth (18+), city.
     /// Optional: nickname (2-100 characters), heightCm, hometown, work, religion.
     /// <c>name</c> is the member's own name — a first name or a full name, their choice.
     /// <c>nickname</c> is what strangers see before a mutual match; omitted means the first letter of <c>name</c>.

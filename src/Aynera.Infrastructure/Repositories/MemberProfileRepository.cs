@@ -31,7 +31,7 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         _logger.LogDebug("MemberProfile CreateAsync user {UserId}", profile.UserId);
         if (!Enum.TryParse<Gender>(profile.Gender, ignoreCase: true, out var gender))
         {
-            throw new AuthException("invalid_gender", "Gender must be Male, Female, or Other.");
+            throw new AuthException("invalid_gender", "Gender must be Male, Female, Other, or PreferNotToSay.");
         }
 
         var entity = _mapper.Map<MemberProfile>(profile);
@@ -49,7 +49,7 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         _logger.LogDebug("MemberProfile UpsertAsync user {UserId}", profile.UserId);
         if (!Enum.TryParse<Gender>(profile.Gender, ignoreCase: true, out var gender))
         {
-            throw new AuthException("invalid_gender", "Gender must be Male, Female, or Other.");
+            throw new AuthException("invalid_gender", "Gender must be Male, Female, Other, or PreferNotToSay.");
         }
 
         var existing = await _db.MemberProfiles
