@@ -150,26 +150,48 @@ See conventions above.
 | Attribute | Type | Required | Validation / notes |
 |-----------|------|----------|--------------------|
 | `phone` | `string` | Yes | Required; valid Indian mobile. Normalized to E.164 `+91…` |
-| `firstName` | `string` | Yes | Max 100 |
-| `lastName` | `string` | Yes | Max 100 |
+| `name` | `string` | Yes | Max 150. The member's own name — a first name or a full name, their choice |
 | `gender` | `string` | Yes | `Male` \| `Female` \| `Other` |
 | `dateOfBirth` | `date` | Yes | ISO date; must be 18+ (`underage` if not) |
 | `city` | `string` | Yes | Max 100; must match an **active catalog city** by name, case-insensitive (`GET /early-access/cities/GetAll`). The canonical name and its `cityId` are stored; otherwise `city_not_supported` |
 | `email` | `string` | Yes | Required; valid email |
+| `nickname` | `string` or `null` | No | Max 100. What strangers see before a mutual match |
+| `heightCm` | `integer` or `null` | No | 120–250 |
+| `hometown` | `string` or `null` | No | Max 100 |
+| `work` | `string` or `null` | No | Max 200 |
 | `religion` | `string` or `null` | No | Max 100 |
 | `password` | `string` or `null` | No | Optional; min 8 chars with a lowercase letter and a number. Enables `POST /auth/password` immediately. |
+
+### `UpdateMemberProfileRequest`
+
+Body of `PUT /members/me/profile`. A **full replace**: omitted optional fields are cleared.
+
+| Attribute | Type | Required | Validation / notes |
+|-----------|------|----------|--------------------|
+| `name` | `string` | Yes | Max 150. A first name or a full name, the member's choice |
+| `gender` | `string` | Yes | `Male` \| `Female` \| `Other` |
+| `dateOfBirth` | `date` | Yes | ISO date; must be 18+ (`underage` if not) |
+| `city` | `string` | Yes | Max 100; resolved against the active catalog like registration, else `city_not_supported` |
+| `nickname` | `string` or `null` | No | 2–100 characters. Omitted means strangers see the first letter of `name` |
+| `heightCm` | `integer` or `null` | No | 120–250 |
+| `hometown` | `string` or `null` | No | Max 100 |
+| `work` | `string` or `null` | No | Max 200 |
+| `religion` | `string` or `null` | No | Max 100 |
 
 ### `MemberProfileDto`
 
 | Attribute | Type | Notes |
 |-----------|------|-------|
-| `firstName` | `string` | |
-| `lastName` | `string` | |
+| `name` | `string` | The member's own name — a first name or a full name |
 | `gender` | `string` | |
 | `dateOfBirth` | `date` | |
 | `city` | `string` | Canonical catalog name |
-| `religion` | `string` or `null` | |
 | `cityId` | `guid` | Shared city-catalog id (same key as `Venue.cityId`); every member has exactly one |
+| `nickname` | `string` or `null` | Shown to strangers before a mutual match; null means the first letter of `name` |
+| `heightCm` | `integer` or `null` | |
+| `hometown` | `string` or `null` | |
+| `work` | `string` or `null` | |
+| `religion` | `string` or `null` | |
 
 ### `RequestMemberOtpRequest`
 
@@ -312,7 +334,7 @@ See conventions above.
 | | |
 |--|--|
 | **Name** | Register |
-| **Purpose** | Register a member account **and** profile. Blocked if a non-deleted account exists for the phone (`isActive=true` → use existing; `isActive=false` → activate first). Soft-deleted rows (`isDeleted=true`) do **not** block; a **new** account id is created. Requires firstName, lastName, gender, dateOfBirth (18+), city, email; optional religion. Atomically creates the account/profile and queues a verification email for retryable delivery; `emailConfirmed` stays false until VerifyEmail |
+| **Purpose** | Register a member account **and** profile. Blocked if a non-deleted account exists for the phone (`isActive=true` → use existing; `isActive=false` → activate first). Soft-deleted rows (`isDeleted=true`) do **not** block; a **new** account id is created. Requires name, gender, dateOfBirth (18+), city, email; optional nickname, heightCm, hometown, work, religion. Atomically creates the account/profile and queues a verification email for retryable delivery; `emailConfirmed` stays false until VerifyEmail |
 | **Method / path** | `POST /members/register` |
 | **Auth** | Anonymous |
 | **Tags** | Members |
@@ -349,6 +371,12 @@ one-shot `POST /members/register` above stays for the website and API clients; t
 | 2 VerifyPhoneRegistration | `POST /members/register/phone/verify` | Anonymous | `{ phone, code }` | `TokenResponse` — **creates a Draft member account** (phone confirmed, no email/profile/password) and signs it in (`amr=otp`) | 401 `otp_invalid` / `otp_expired` / `otp_locked`; 409 as above if the number was taken in between |
 | 3 StartEmailVerification | `POST /members/me/email` | `Member` | `{ email }` | `RequestMemberOtpResponse` | 409 `email_already_exists`; 429 `otp_rate_limited` |
 | 4 VerifyEmailCode | `POST /members/me/email/verify` | `Member` | `{ email, code }` | `AuthAccountDto` with the email set and `emailConfirmed: true` | 401 OTP codes; 409 `email_already_exists` |
+| 5 SaveProfile | `PUT /members/me/profile` | `Member` | `UpdateMemberProfileRequest` | `AuthAccountDto` with its `profile` | 400 `validation_failed`, `city_not_supported`, `underage`; 401 without a session |
+
+Step 5 is where the app's "you", "basics" and "life" answers land. The app keeps its own draft on the device
+while the member walks the steps and sends it once, after the "life" step — `city` is required, and that is the
+first step at which it is known. The save creates the profile row on first call and fully replaces it after that,
+so a resumed registration overwrites rather than merges. Every optional field left out is cleared.
 
 Notes: codes are six digits, valid `Aynera:Otp:TtlSeconds` (default 300 s), single-use (a consumed code answers `otp_expired`), and rate-limited per destination and IP like login. OTP purposes are `registration` (phone) and `email_verification` (email) — a login code cannot be replayed here and vice versa. After step 2 the account's admission is `Draft`; `GET /members/me` returns `profile: null` until the profile steps are saved. Every step is audited (`otp_requested`, `otp_failed`, `member_registered`, `email_confirmed`).
 
@@ -1150,13 +1178,13 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities/GetAll` picks the
 | `isActive` | `boolean` | Member self-deactivate flag |
 | `isRestricted` | `boolean` | Super-admin restriction; blocks sign-in |
 | `createdAtUtc` | `datetime` | Account created |
-| `firstName` | `string` or `null` | From member profile when present |
-| `lastName` | `string` or `null` | |
+| `name` | `string` or `null` | From member profile when present |
 | `gender` | `string` or `null` | |
 | `dateOfBirth` | `date` or `null` | |
 | `city` | `string` or `null` | Canonical catalog name |
 | `religion` | `string` or `null` | |
 | `cityId` | `guid` or `null` | Shared city-catalog id (same key as `Venue.cityId`); null only when the user has no profile row (like the other profile fields) |
+| `nickname` | `string` or `null` | Shown to strangers before a mutual match |
 
 Open one member with `GET /members/{id}`. Super-admins can restrict or unrestrict with `POST /members/{id}/restrict` and `POST /members/{id}/unrestrict` (independent of member self-deactivate).
 
@@ -1294,6 +1322,7 @@ Admission review is one input to match eligibility, never the whole of it. The *
 | VerifyPhoneRegistration | `POST` | `/members/register/phone/verify` | Anonymous | `{ phone, code }` | `TokenResponse` (Draft account created) |
 | StartEmailVerification | `POST` | `/members/me/email` | `Member` | `{ email }` | `RequestMemberOtpResponse` |
 | VerifyEmailCode | `POST` | `/members/me/email/verify` | `Member` | `{ email, code }` | `AuthAccountDto` |
+| SaveProfile | `PUT` | `/members/me/profile` | `Member` | `UpdateMemberProfileRequest` | `AuthAccountDto` |
 | VerifyEmail | `POST` | `/auth/verifyemail` | Anonymous | `ConfirmEmailRequest` | `AuthAccountDto` |
 | Login | `POST` | `/auth/login` | Anonymous | `RequestMemberOtpRequest` | `RequestMemberOtpResponse` |
 | VerifySms | `POST` | `/auth/verifysms` | Anonymous | `VerifyMemberOtpRequest` | `TokenResponse` |
@@ -1361,7 +1390,7 @@ Admission review is one input to match eligibility, never the whole of it. The *
 ## Client flow (member app)
 
 ```text
-0. POST /members/register                { phone, email, firstName, lastName, gender, dateOfBirth, city, religion?, password? }
+0. POST /members/register                { phone, email, name, gender, dateOfBirth, city, nickname?, heightCm?, hometown?, work?, religion?, password? }
    — queues verification email after account/profile commit (dev stub does not deliver mail); emailConfirmed=false until step 0b
    — optional password enables PasswordLogin immediately
 0b. Open email link → client reads ?userId=&token=

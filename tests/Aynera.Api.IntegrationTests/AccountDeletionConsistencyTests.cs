@@ -92,8 +92,8 @@ public sealed class AccountDeletionConsistencyTests(AuthApiFactory factory)
         using var scope = factory.Services.CreateScope();
         var sp = scope.ServiceProvider;
         var request = new CreateMemberRequest("9" + Random.Shared.NextInt64(100_000_000, 999_999_999),
-            "Ada", "Lovelace", Gender.Female, new DateOnly(1990, 5, 15), "Mumbai",
-            $"deletion-{Guid.NewGuid():N}@example.com", null, "secret12");
+            "Ada Lovelace", Gender.Female, new DateOnly(1990, 5, 15), "Mumbai",
+            $"deletion-{Guid.NewGuid():N}@example.com", Password: "secret12");
         var account = await sp.GetRequiredService<IRegistrationService>().RegisterAsync(request, CancellationToken.None);
         var db = sp.GetRequiredService<AyneraDbContext>();
         db.MemberPhotos.Add(new MemberPhoto { Id = Guid.NewGuid(), UserId = account.Id, ContentType = "image/jpeg", Data = [1, 2, 3], ByteSize = 3, IsReference = true });

@@ -31,4 +31,13 @@ public interface IRegistrationService
         Guid userId,
         VerifyEmailCodeRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// App step 5: writes the signed-in member's basic details in one go, creating the profile row on
+    /// first save. A full replace — omitted optional fields are cleared.
+    /// </summary>
+    Task<AuthAccountDto> SaveProfileAsync(
+        Guid userId,
+        UpdateMemberProfileRequest request,
+        CancellationToken cancellationToken);
 }

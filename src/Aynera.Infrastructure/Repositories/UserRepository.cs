@@ -561,8 +561,9 @@ public sealed class UserRepository : IUserRepository
             query = query.Where(u =>
                 (u.Email != null && u.Email.ToLower().Contains(term))
                 || (u.PhoneNumber != null && u.PhoneNumber.ToLower().Contains(term))
-                || (u.Profile != null && u.Profile.FirstName.ToLower().Contains(term))
-                || (u.Profile != null && u.Profile.LastName.ToLower().Contains(term)));
+                || (u.Profile != null && u.Profile.Name.ToLower().Contains(term))
+                || (u.Profile != null && u.Profile.Nickname != null
+                    && u.Profile.Nickname.ToLower().Contains(term)));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -598,13 +599,16 @@ public sealed class UserRepository : IUserRepository
             entity.IsActive,
             entity.IsRestricted,
             entity.CreatedAtUtc,
-            entity.Profile?.FirstName,
-            entity.Profile?.LastName,
+            entity.Profile?.Name,
             entity.Profile?.Gender.ToString(),
             entity.Profile?.DateOfBirth,
             entity.Profile?.City,
             entity.Profile?.Religion,
-            entity.Profile?.CityId);
+            entity.Profile?.CityId,
+            entity.Profile?.Nickname,
+            entity.Profile?.HeightCm,
+            entity.Profile?.Hometown,
+            entity.Profile?.Work);
 
     public async Task<int> CountActiveAdminsAsync(CancellationToken cancellationToken)
     {

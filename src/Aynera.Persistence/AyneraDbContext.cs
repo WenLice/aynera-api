@@ -83,14 +83,16 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
         {
             entity.ToTable("MemberProfiles");
             entity.HasKey(x => x.UserId);
-            entity.Property(x => x.FirstName).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.LastName).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.Nickname).HasMaxLength(100);
             entity.Property(x => x.Gender)
                 .HasConversion<string>()
                 .HasMaxLength(32)
                 .IsRequired();
             entity.Property(x => x.DateOfBirth).IsRequired();
             entity.Property(x => x.City).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Hometown).HasMaxLength(100);
+            entity.Property(x => x.Work).HasMaxLength(200);
             entity.Property(x => x.Religion).HasMaxLength(100);
             entity.Property(x => x.CreatedAtUtc).IsRequired();
             entity.Property(x => x.CityId).IsRequired();

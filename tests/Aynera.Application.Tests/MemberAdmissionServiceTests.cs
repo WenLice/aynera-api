@@ -49,7 +49,7 @@ public class MemberAdmissionServiceTests
                 $"{id:N}@example.test", emailConfirmed, "Member", active, deleted, false, restricted, ["Member"]));
             if (withProfile)
             {
-                Profiles.Set(new MemberProfileRecord(id, "Asha", "Rao", "Female", dob ?? AdultDob, "Delhi", null, DelhiId));
+                Profiles.Set(new MemberProfileRecord(id, "Asha Rao", "Female", dob ?? AdultDob, "Delhi", DelhiId));
             }
 
             return id;
@@ -476,6 +476,12 @@ internal sealed class AdmissionProfileRepo : IMemberProfileRepository
     public void Set(MemberProfileRecord profile) => _profiles[profile.UserId] = profile;
 
     public Task<MemberProfileRecord> CreateAsync(MemberProfileRecord profile, CancellationToken cancellationToken)
+    {
+        Set(profile);
+        return Task.FromResult(profile);
+    }
+
+    public Task<MemberProfileRecord> UpsertAsync(MemberProfileRecord profile, CancellationToken cancellationToken)
     {
         Set(profile);
         return Task.FromResult(profile);

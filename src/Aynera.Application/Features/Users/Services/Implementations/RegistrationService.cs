@@ -58,13 +58,16 @@ public sealed class RegistrationService(
                 var createdProfile = await profiles.CreateAsync(
                     new MemberProfileRecord(
                         createdUser.Id,
-                        request.FirstName.Trim(),
-                        request.LastName.Trim(),
+                        request.Name.Trim(),
                         request.Gender.ToString(),
                         request.DateOfBirth,
                         city.Name,
-                        string.IsNullOrWhiteSpace(request.Religion) ? null : request.Religion.Trim(),
-                        CityId: city.Id),
+                        CityId: city.Id,
+                        Nickname: request.Nickname,
+                        HeightCm: request.HeightCm,
+                        Hometown: request.Hometown,
+                        Work: request.Work,
+                        Religion: request.Religion),
                     ct);
 
                 await emails.EnqueueAsync(createdUser.Id, ct);
@@ -82,8 +85,7 @@ public sealed class RegistrationService(
                 SubjectId: user.Id.ToString("D"),
                 Changes: AuditChanges.Create(
                 [
-                    ("firstName", null, profile.FirstName),
-                    ("lastName", null, profile.LastName),
+                    ("name", null, profile.Name),
                     ("gender", null, profile.Gender),
                     ("city", null, profile.City),
                     ("cityId", null, city.Id.ToString("D")),
@@ -306,6 +308,73 @@ public sealed class RegistrationService(
         {
             Profile = profile is null ? null : mapper.Map<MemberProfileDto>(profile)
         };
+    }
+
+    public async Task<AuthAccountDto> SaveProfileAsync(
+        Guid userId,
+        UpdateMemberProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        AgeRules.EnsureAdult(request.DateOfBirth);
+        logger.LogInformation("SaveProfile for user {UserId}", userId);
+
+        // Same rule as one-shot registration: the member's city must be a catalogued, active city so
+        // that members and venues share one key. The canonical catalog name is stored, not what was typed.
+        var cityName = request.City.Trim();
+        var city = await cities.FindOpenByNameAsync(cityName, cancellationToken)
+            ?? throw new AuthException("city_not_supported", $"Aynera is not available in {cityName} yet.");
+
+        var (user, before, after) = await transaction.ExecuteAsync(
+            new[] { $"account:{userId:D}" },
+            async ct =>
+            {
+                var account = await users.FindByIdAsync(userId, ct)
+                    ?? throw new AuthException("user_not_found", "Account not found.", statusCode: 404);
+
+                var previous = await profiles.FindByUserIdAsync(userId, ct);
+                var saved = await profiles.UpsertAsync(
+                    new MemberProfileRecord(
+                        userId,
+                        request.Name.Trim(),
+                        request.Gender.ToString(),
+                        request.DateOfBirth,
+                        city.Name,
+                        CityId: city.Id,
+                        Nickname: request.Nickname,
+                        HeightCm: request.HeightCm,
+                        Hometown: request.Hometown,
+                        Work: request.Work,
+                        Religion: request.Religion),
+                    ct);
+
+                return (account, previous, saved);
+            },
+            cancellationToken);
+
+        await audit.WriteAsync(
+            new AuditEventWriteModel(
+                Action: AuditActions.MemberProfileSaved,
+                Outcome: AuditOutcomes.Success,
+                Message: before is null ? "Member profile created." : "Member profile updated.",
+                UserId: userId,
+                SubjectUserId: userId,
+                SubjectType: AuditSubjectTypes.User,
+                SubjectId: userId.ToString("D"),
+                Changes: AuditChanges.Create(
+                [
+                    ("name", before?.Name, after.Name),
+                    ("nickname", before?.Nickname, after.Nickname),
+                    ("gender", before?.Gender, after.Gender),
+                    ("city", before?.City, after.City),
+                    ("cityId", before?.CityId.ToString("D"), city.Id.ToString("D")),
+                    ("heightCm", before?.HeightCm, after.HeightCm),
+                    ("hometown", before?.Hometown, after.Hometown),
+                    ("work", before?.Work, after.Work)
+                ])),
+            cancellationToken);
+
+        logger.LogInformation("SaveProfile succeeded for user {UserId}", userId);
+        return mapper.Map<AuthAccountDto>(user) with { Profile = mapper.Map<MemberProfileDto>(after) };
     }
 
     // ----- helpers -----

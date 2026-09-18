@@ -28,8 +28,8 @@ namespace Aynera.Api.IntegrationTests;
 public sealed class RegistrationConsistencyTests(AuthApiFactory factory)
 {
     private static CreateMemberRequest Request() => new(
-        "9" + Random.Shared.NextInt64(100_000_000, 999_999_999), "Ada", "Lovelace", Gender.Female,
-        new DateOnly(1990, 5, 15), "Mumbai", $"registration-{Guid.NewGuid():N}@example.com", null, "secret12");
+        "9" + Random.Shared.NextInt64(100_000_000, 999_999_999), "Ada Lovelace", Gender.Female,
+        new DateOnly(1990, 5, 15), "Mumbai", $"registration-{Guid.NewGuid():N}@example.com", Password: "secret12");
 
     [Theory]
     [InlineData("identity")]
@@ -248,6 +248,8 @@ public sealed class RegistrationConsistencyTests(AuthApiFactory factory)
     {
         public async Task<MemberProfileRecord> CreateAsync(MemberProfileRecord profile, CancellationToken cancellationToken)
         { await inner.CreateAsync(profile, cancellationToken); throw new InvalidOperationException("Injected profile failure."); }
+        public async Task<MemberProfileRecord> UpsertAsync(MemberProfileRecord profile, CancellationToken cancellationToken)
+        { await inner.UpsertAsync(profile, cancellationToken); throw new InvalidOperationException("Injected profile failure."); }
         public Task<MemberProfileRecord?> FindByUserIdAsync(Guid id, CancellationToken ct) => inner.FindByUserIdAsync(id, ct);
         public Task SoftDeleteByUserIdAsync(Guid id, CancellationToken ct) => inner.SoftDeleteByUserIdAsync(id, ct);
     }

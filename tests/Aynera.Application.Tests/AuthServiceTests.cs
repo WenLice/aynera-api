@@ -169,14 +169,13 @@ public class AuthServiceTests
         string? password = null) =>
         new(
             phone,
-            "Ada",
-            "Lovelace",
+            "Ada Lovelace",
             Gender.Female,
             new DateOnly(1990, 5, 15),
             "Mumbai",
             email,
-            "Hindu",
-            password);
+            Religion: "Hindu",
+            Password: password);
 
     private static IOptions<EmailOptions> DefaultEmailOptions { get; } =
         Options.Create(new EmailOptions { VerifyLinkBaseUrl = "http://localhost:5173/verify-email" });
@@ -775,8 +774,7 @@ public class AuthServiceTests
                 true,
                 false,
                 older,
-                "Older",
-                "Member",
+                "Older Member",
                 "Female",
                 new DateOnly(1994, 2, 3),
                 "Delhi",
@@ -791,8 +789,7 @@ public class AuthServiceTests
                 true,
                 false,
                 newer,
-                "Newer",
-                "Member",
+                "Newer Member",
                 "Male",
                 new DateOnly(1992, 6, 15),
                 "Bangalore",
@@ -802,7 +799,7 @@ public class AuthServiceTests
 
         Assert.Equal(2, page.TotalCount);
         Assert.Equal("newer@example.com", page.Items[0].Email);
-        Assert.Equal("Older", page.Items[1].FirstName);
+        Assert.Equal("Older Member", page.Items[1].Name);
         Assert.Equal("Bangalore", page.Items[0].City);
         Assert.DoesNotContain(page.Items, item => item.Email == "ops@example.com");
     }
@@ -835,8 +832,7 @@ public class AuthServiceTests
                 true,
                 false,
                 DateTimeOffset.UtcNow,
-                "Active",
-                "Person",
+                "Active Person",
                 "Female",
                 new DateOnly(1994, 2, 3),
                 "Delhi",
@@ -852,8 +848,7 @@ public class AuthServiceTests
                 true,
                 true,
                 DateTimeOffset.UtcNow.AddMinutes(-1),
-                "Restricted",
-                "Person",
+                "Restricted Person",
                 "Male",
                 new DateOnly(1992, 6, 15),
                 "Mumbai",
@@ -895,8 +890,7 @@ public class AuthServiceTests
                 true,
                 false,
                 DateTimeOffset.UtcNow,
-                "Listed",
-                "Member",
+                "Listed Member",
                 "Female",
                 new DateOnly(1995, 1, 1),
                 "Delhi",
@@ -936,8 +930,7 @@ public class AuthServiceTests
                 true,
                 true, false,
                 new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero),
-                "Meera",
-                "Shah",
+                "Meera Shah",
                 "Female",
                 new DateOnly(1996, 4, 12),
                 "Delhi",
@@ -946,7 +939,7 @@ public class AuthServiceTests
         var detail = await CreateUserManagement(users).GetMemberAsync(adminId, memberId, CancellationToken.None);
 
         Assert.Equal(memberId, detail.Id);
-        Assert.Equal("Meera", detail.FirstName);
+        Assert.Equal("Meera Shah", detail.Name);
         Assert.Equal("Delhi", detail.City);
         Assert.Empty(detail.Photos);
         Assert.Null(detail.IntroductionVideo);
@@ -1017,8 +1010,7 @@ public class AuthServiceTests
                 true,
                 true, false,
                 new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero),
-                "Riya",
-                "Mehta",
+                "Riya Mehta",
                 "Female",
                 new DateOnly(1995, 1, 1),
                 "Mumbai",
@@ -1059,8 +1051,7 @@ public class AuthServiceTests
                 true,
                 true, false,
                 new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero),
-                "Riya",
-                "Mehta",
+                "Riya Mehta",
                 "Female",
                 new DateOnly(1995, 1, 1),
                 "Mumbai",
@@ -1328,7 +1319,7 @@ public class AuthServiceTests
         Assert.False(account.EmailConfirmed);
         Assert.Contains("member", account.Roles);
         Assert.NotNull(account.Profile);
-        Assert.Equal("Ada", account.Profile!.FirstName);
+        Assert.Equal("Ada Lovelace", account.Profile!.Name);
         Assert.Equal("Mumbai", account.Profile.City);
         Assert.NotNull(await users.FindByPhoneAsync("+919876543210", CancellationToken.None));
     }
@@ -1480,8 +1471,7 @@ public class AuthServiceTests
 
         var underage = new CreateMemberRequest(
             "9876543210",
-            "Kid",
-            "User",
+            "Kid User",
             Gender.Male,
             DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-10)),
             "Mumbai",
@@ -1799,7 +1789,6 @@ sealed class FakeUserRepository : IUserRepository
                 user.EmailConfirmed,
                 user.IsActive,
                 user.IsRestricted, DateTimeOffset.UtcNow,
-                null,
                 null,
                 null,
                 null,
@@ -2140,8 +2129,8 @@ sealed class FakeUserRepository : IUserRepository
             members = members.Where(member =>
                 (member.Email?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
                 || (member.Phone?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
-                || (member.FirstName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
-                || (member.LastName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
+                || (member.Name?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (member.Nickname?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
         var list = members
@@ -2248,6 +2237,12 @@ file sealed class FakeMemberProfileRepository : IMemberProfileRepository
     private readonly Dictionary<Guid, MemberProfileRecord> _byUserId = new();
 
     public Task<MemberProfileRecord> CreateAsync(MemberProfileRecord profile, CancellationToken cancellationToken)
+    {
+        _byUserId[profile.UserId] = profile;
+        return Task.FromResult(profile);
+    }
+
+    public Task<MemberProfileRecord> UpsertAsync(MemberProfileRecord profile, CancellationToken cancellationToken)
     {
         _byUserId[profile.UserId] = profile;
         return Task.FromResult(profile);

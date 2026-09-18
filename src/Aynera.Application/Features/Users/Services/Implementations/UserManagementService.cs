@@ -160,15 +160,18 @@ public sealed class UserManagementService : IUserManagementService
             row.IsActive,
             row.IsRestricted,
             row.CreatedAtUtc,
-            row.FirstName,
-            row.LastName,
+            row.Name,
             row.Gender,
             row.DateOfBirth,
             row.City,
             row.Religion,
             photos,
             video,
-            row.CityId);
+            row.CityId,
+            row.Nickname,
+            row.HeightCm,
+            row.Hometown,
+            row.Work);
     }
 
     public async Task<MemberPhotoBytes> GetMemberPhotoAsync(

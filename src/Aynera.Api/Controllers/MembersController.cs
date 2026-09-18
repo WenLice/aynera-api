@@ -41,10 +41,10 @@ public sealed class MembersController : BaseController
     /// <summary>Register</summary>
     /// <remarks>
     /// Creates a new member account and profile.
-    /// Required: phone, firstName, lastName, gender (Male|Female|Other), dateOfBirth (18+), city, email.
+    /// Required: phone, name, gender (Male|Female|Other), dateOfBirth (18+), city, email.
     /// <c>city</c> must be an active city in the shared city catalog (<c>GET /early-access/cities/GetAll</c>);
     /// the canonical catalog name and its <c>cityId</c> are stored. Unknown or closed cities fail with <c>city_not_supported</c>.
-    /// Optional: religion. Profile photos are uploaded separately via Profile UploadPhotos.
+    /// Optional: nickname, heightCm, hometown, work, religion. Photos are uploaded separately via Photos Upload.
     /// Blocked if an active or deactivated account already uses that phone.
     /// Soft-deleted accounts do not block — a new account id is created.
     /// Queues an email verification link for automatic delivery with retries. <c>emailConfirmed</c> stays false until Auth VerifyEmail.
@@ -149,6 +149,35 @@ public sealed class MembersController : BaseController
         CancellationToken cancellationToken)
     {
         var account = await _registration.VerifyEmailCodeAsync(
+            CurrentUser.GetRequiredUserId(),
+            request,
+            cancellationToken);
+        return OkResponse(account);
+    }
+
+    /// <summary>SaveProfile</summary>
+    /// <remarks>
+    /// Writes the authenticated member's basic details, creating the profile row on the first save
+    /// (the app's registration path arrives here with a phone-verified account and no profile yet).
+    /// A full replace, not a patch: omitted optional fields are cleared.
+    /// Required: name, gender (Male|Female|Other), dateOfBirth (18+), city.
+    /// Optional: nickname (2-100 characters), heightCm, hometown, work, religion.
+    /// <c>name</c> is the member's own name — a first name or a full name, their choice.
+    /// <c>nickname</c> is what strangers see before a mutual match; omitted means the first letter of <c>name</c>.
+    /// <c>city</c> must be an active city in the shared city catalog (<c>GET /early-access/cities/GetAll</c>);
+    /// the canonical catalog name and its <c>cityId</c> are stored. Unknown or closed cities fail with <c>city_not_supported</c>.
+    /// Returns the updated account with its profile.
+    /// </remarks>
+    [HttpPut("me/profile")]
+    [Authorize(Policy = AuthPolicies.Member)]
+    [ProducesResponseType(typeof(ApiResponse<AuthAccountDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<AuthAccountDto>>> SaveProfile(
+        [FromBody] UpdateMemberProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var account = await _registration.SaveProfileAsync(
             CurrentUser.GetRequiredUserId(),
             request,
             cancellationToken);

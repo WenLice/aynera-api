@@ -17,6 +17,14 @@ live account owns the address) and `VerifyEmailCodeAsync` (consumes the code, `S
 account lock, audits `email_confirmed`). No verification-email link is queued on this path — the code *is* the
 proof. The one-shot `RegisterAsync` is unchanged for the website and tests.
 
+A fifth step, `SaveProfileAsync` (`PUT /members/me/profile`), writes the member's basic details. The app keeps
+its own draft on the device while the member walks the "you", "basics" and "life" steps and sends it once, after
+"life" — `city` is required and that is the first step at which it is known. The method resolves the city the same
+way `RegisterAsync` does, then upserts the profile under the `account:{userId}` lock and audits
+`member_profile_saved` with the before/after of each field. It is a full replace, not a patch: a second save
+overwrites every field, so an optional field left out is cleared. Interests, taste and intent are not part of it —
+those are a later, separate model.
+
 ## Persistence and delivery
 
 RegistrationService validates adulthood/contact information and the verification-link URL, resolves `city` against the active city catalog (`IEarlyAccessCityRepository.FindOpenByNameAsync`, case-insensitive; unknown or closed cities fail with `city_not_supported` before any write, and the canonical catalog name plus `CityId` are stored so members and venues share one city key), then coordinates account creation (including the member role), initial profile creation and a VerificationEmailDeliveries row. WorkflowTransaction uses one scoped AyneraDbContext transaction across Identity and repositories. Sorted PostgreSQL advisory locks serialize member registrations that share a normalized phone or email. A failed identity/profile/queue write or cancellation rolls back all those writes.
@@ -37,6 +45,7 @@ Audit retains its existing best-effort behavior after commit. Account deletion n
 
 - Apply `20260908052824_AddVerificationEmailDeliveries` through the normal EF migration/startup path. It adds one table and index; existing member rows are unchanged and no historical email jobs are backfilled.
 - `20260913091510_AddMemberProfileCityId` adds the nullable `MemberProfiles.CityId` column + index. `20260916081640_RequireMemberProfileCity` then backfills legacy rows by case-insensitive, trimmed name match against `EarlyAccessCities` (normalising `City` to the catalog spelling), **raises an exception listing the unmatched city names if any profile cannot be linked**, and finally makes the column `NOT NULL`. Fix or remove unmatched rows and restart; the migration never invents a placeholder city. `MemberProfileCityMigrationTests` replays this against legacy-shaped rows.
+- `20260918092953_MemberProfileBasicDetails` replaces `FirstName`/`LastName` with one required `Name` (max 150 — a first name or a full name, the member's choice) and adds the nullable `Nickname`, `HeightCm`, `Hometown` and `Work`. `Name` is added nullable, backfilled as `btrim(FirstName || ' ' || LastName)`, then **raises if any row is still without a name** before being set `NOT NULL`; only then are the old columns dropped. `Down` splits `Name` back at the first space, which is lossy by nature. `MemberProfileNameMigrationTests` replays it.
 - Keep the API process running for automatic retries. Configure a real email adapter for delivery; the Console provider remains a development no-send adapter.
 - All worker instances need compatible ASP.NET Data Protection keys/configuration so a link created by one instance can be confirmed by another. Use the existing deployment key-management setup; this slice does not configure shared production keys.
 - Integration tests disable only the background worker and invoke the production dispatcher explicitly for deterministic assertions. PostgreSQL tests cover rollback after persisted writes, cancellation, concurrency, provider retry, lease recovery, invalid URL rejection and obsolete work cleanup.

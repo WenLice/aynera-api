@@ -42,6 +42,43 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         return _mapper.Map<MemberProfileRecord>(entity);
     }
 
+    public async Task<MemberProfileRecord> UpsertAsync(
+        MemberProfileRecord profile,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("MemberProfile UpsertAsync user {UserId}", profile.UserId);
+        if (!Enum.TryParse<Gender>(profile.Gender, ignoreCase: true, out var gender))
+        {
+            throw new AuthException("invalid_gender", "Gender must be Male, Female, or Other.");
+        }
+
+        var existing = await _db.MemberProfiles
+            .FirstOrDefaultAsync(x => x.UserId == profile.UserId, cancellationToken);
+
+        if (existing is null)
+        {
+            return await CreateAsync(profile, cancellationToken);
+        }
+
+        existing.Name = profile.Name.Trim();
+        existing.Nickname = Normalize(profile.Nickname);
+        existing.Gender = gender;
+        existing.DateOfBirth = profile.DateOfBirth;
+        existing.City = profile.City.Trim();
+        existing.CityId = profile.CityId;
+        existing.HeightCm = profile.HeightCm;
+        existing.Hometown = Normalize(profile.Hometown);
+        existing.Work = Normalize(profile.Work);
+        existing.Religion = Normalize(profile.Religion);
+        existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return _mapper.Map<MemberProfileRecord>(existing);
+    }
+
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     public async Task<MemberProfileRecord?> FindByUserIdAsync(Guid userId, CancellationToken cancellationToken)
     {
         var entity = await _db.MemberProfiles

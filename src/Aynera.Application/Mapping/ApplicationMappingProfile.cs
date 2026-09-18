@@ -21,13 +21,16 @@ public sealed class ApplicationMappingProfile : Profile
     {
         CreateMap<MemberProfileRecord, MemberProfileDto>()
             .ConstructUsing(src => new MemberProfileDto(
-                src.FirstName,
-                src.LastName,
+                src.Name,
                 src.Gender,
                 src.DateOfBirth,
                 src.City,
-                src.Religion,
-                src.CityId))
+                src.CityId,
+                src.Nickname,
+                src.HeightCm,
+                src.Hometown,
+                src.Work,
+                src.Religion))
             .ForAllMembers(o => o.Ignore());
 
         CreateMap<MemberAdminRecord, MemberAdminDto>()
@@ -40,13 +43,13 @@ public sealed class ApplicationMappingProfile : Profile
                 src.IsActive,
                 src.IsRestricted,
                 src.CreatedAtUtc,
-                src.FirstName,
-                src.LastName,
+                src.Name,
                 src.Gender,
                 src.DateOfBirth,
                 src.City,
                 src.Religion,
-                src.CityId))
+                src.CityId,
+                src.Nickname))
             .ForAllMembers(o => o.Ignore());
 
         CreateMap<UserRecord, AuthAccountDto>()

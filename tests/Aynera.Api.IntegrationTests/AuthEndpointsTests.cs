@@ -160,14 +160,13 @@ public class AuthEndpointsTests
         string? password = null) =>
         new(
             phone,
-            "Ada",
-            "Lovelace",
+            "Ada Lovelace",
             Gender.Female,
             new DateOnly(1990, 5, 15),
             "Mumbai",
             email,
-            "Hindu",
-            password);
+            Religion: "Hindu",
+            Password: password);
 
     [Fact]
     public async Task RegisterLoginVerifySmsMe_RoundTrip()
@@ -199,7 +198,7 @@ public class AuthEndpointsTests
         Assert.NotNull(tokensEnvelope.Data);
         Assert.False(string.IsNullOrWhiteSpace(tokensEnvelope.Data!.AccessToken));
         Assert.NotNull(tokensEnvelope.Data.Account.Profile);
-        Assert.Equal("Ada", tokensEnvelope.Data.Account.Profile!.FirstName);
+        Assert.Equal("Ada Lovelace", tokensEnvelope.Data.Account.Profile!.Name);
 
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", tokensEnvelope.Data.AccessToken);
@@ -252,7 +251,7 @@ public class AuthEndpointsTests
         Assert.False(envelope.Data.PhoneConfirmed);
         Assert.Contains("member", envelope.Data.Roles);
         Assert.NotNull(envelope.Data.Profile);
-        Assert.Equal("Ada", envelope.Data.Profile!.FirstName);
+        Assert.Equal("Ada Lovelace", envelope.Data.Profile!.Name);
         Assert.Equal("Female", envelope.Data.Profile.Gender);
         Assert.Equal("Mumbai", envelope.Data.Profile.City);
         Assert.False(envelope.Data.EmailConfirmed);
@@ -311,8 +310,7 @@ public class AuthEndpointsTests
         var client = _factory.CreateClient();
         var body = new CreateMemberRequest(
             "7766554433",
-            "Kid",
-            "User",
+            "Kid User",
             Gender.Male,
             DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-16)),
             "Delhi",

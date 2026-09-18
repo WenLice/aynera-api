@@ -33,20 +33,32 @@ public sealed class InfrastructureMappingProfile : Profile
         CreateMap<MemberProfile, MemberProfileRecord>()
             .ConstructUsing(src => new MemberProfileRecord(
                 src.UserId,
-                src.FirstName,
-                src.LastName,
+                src.Name,
                 src.Gender.ToString(),
                 src.DateOfBirth,
                 src.City,
-                src.Religion,
-                src.CityId))
+                src.CityId,
+                src.Nickname,
+                src.HeightCm,
+                src.Hometown,
+                src.Work,
+                src.Religion))
             .ForAllMembers(o => o.Ignore());
 
         CreateMap<MemberProfileRecord, MemberProfile>()
-            .ForMember(d => d.FirstName, o => o.MapFrom(s => s.FirstName.Trim()))
-            .ForMember(d => d.LastName, o => o.MapFrom(s => s.LastName.Trim()))
+            .ForMember(d => d.Name, o => o.MapFrom(s => s.Name.Trim()))
             .ForMember(d => d.City, o => o.MapFrom(s => s.City.Trim()))
             .ForMember(d => d.CityId, o => o.MapFrom(s => s.CityId))
+            .ForMember(d => d.HeightCm, o => o.MapFrom(s => s.HeightCm))
+            .ForMember(
+                d => d.Nickname,
+                o => o.MapFrom(s => string.IsNullOrWhiteSpace(s.Nickname) ? null : s.Nickname.Trim()))
+            .ForMember(
+                d => d.Hometown,
+                o => o.MapFrom(s => string.IsNullOrWhiteSpace(s.Hometown) ? null : s.Hometown.Trim()))
+            .ForMember(
+                d => d.Work,
+                o => o.MapFrom(s => string.IsNullOrWhiteSpace(s.Work) ? null : s.Work.Trim()))
             .ForMember(
                 d => d.Religion,
                 o => o.MapFrom(s => string.IsNullOrWhiteSpace(s.Religion) ? null : s.Religion.Trim()))

@@ -248,8 +248,7 @@ public sealed class AdmissionEndpointsTests(AuthApiFactory factory)
             db.MemberProfiles.Add(new MemberProfile
             {
                 UserId = user.Id,
-                FirstName = "Asha",
-                LastName = "Rao",
+                Name = "Asha Rao",
                 Gender = Gender.Female,
                 DateOfBirth = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-25),
                 City = delhi.Name,

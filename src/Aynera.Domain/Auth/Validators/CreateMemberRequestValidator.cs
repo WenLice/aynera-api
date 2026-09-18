@@ -14,13 +14,26 @@ public sealed class CreateMemberRequestValidator : AbstractValidator<CreateMembe
             .Must(RequestValidation.BeValidIndianMobile)
             .WithMessage("Enter a valid Indian mobile number.");
 
-        RuleFor(x => x.FirstName)
-            .NotEmpty().WithMessage("First name is required.")
-            .MaximumLength(100).WithMessage("First name is too long.");
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Name is required.")
+            .MaximumLength(150).WithMessage("Name is too long.");
 
-        RuleFor(x => x.LastName)
-            .NotEmpty().WithMessage("Last name is required.")
-            .MaximumLength(100).WithMessage("Last name is too long.");
+        RuleFor(x => x.Nickname)
+            .MaximumLength(100).WithMessage("Nickname is too long.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Nickname));
+
+        RuleFor(x => x.HeightCm)
+            .InclusiveBetween(MemberProfileRules.HeightMinCm, MemberProfileRules.HeightMaxCm)
+            .WithMessage($"Height must be between {MemberProfileRules.HeightMinCm} and {MemberProfileRules.HeightMaxCm} cm.")
+            .When(x => x.HeightCm.HasValue);
+
+        RuleFor(x => x.Hometown)
+            .MaximumLength(100).WithMessage("Hometown is too long.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Hometown));
+
+        RuleFor(x => x.Work)
+            .MaximumLength(200).WithMessage("Work is too long.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Work));
 
         RuleFor(x => x.Gender)
             .IsInEnum().WithMessage("Gender is invalid.");

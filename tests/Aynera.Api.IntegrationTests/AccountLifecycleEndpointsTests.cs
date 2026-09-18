@@ -352,14 +352,12 @@ public sealed class AccountLifecycleEndpointsTests(AuthApiFactory factory)
         var phone = UniquePhone();
         var request = new CreateMemberRequest(
             phone,
-            "Ada",
-            "Lovelace",
+            "Ada Lovelace",
             Gender.Female,
             new DateOnly(1990, 5, 15),
             "Mumbai",
             email ?? $"lifecycle-{Guid.NewGuid():N}@example.com",
-            null,
-            "secret12");
+            Password: "secret12");
         using var registered = await client.PostAsJsonAsync("/members/register", request);
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
 

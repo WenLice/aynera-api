@@ -41,14 +41,12 @@ public sealed class RedisOtpConsumptionTests(RedisOtpAuthApiFactory factory)
             "/members/register",
             new CreateMemberRequest(
                 phone,
-                "Ada",
-                "Lovelace",
+                "Ada Lovelace",
                 Gender.Female,
                 new DateOnly(1990, 5, 15),
                 "Mumbai",
                 $"redis-otp-{Guid.NewGuid():N}@example.com",
-                null,
-                "secret12"));
+                Password: "secret12"));
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
         using var login = await client.PostAsJsonAsync("/auth/password", new MemberPasswordLoginRequest(phone, "secret12"));
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
@@ -88,14 +86,12 @@ public sealed class RedisOtpConsumptionTests(RedisOtpAuthApiFactory factory)
             "/members/register",
             new CreateMemberRequest(
                 phone,
-                "Ada",
-                "Lovelace",
+                "Ada Lovelace",
                 Gender.Female,
                 new DateOnly(1990, 5, 15),
                 "Mumbai",
                 $"redis-login-{Guid.NewGuid():N}@example.com",
-                null,
-                "secret12"));
+                Password: "secret12"));
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
         using var requested = await client.PostAsJsonAsync("/auth/login", new RequestMemberOtpRequest(phone));
         Assert.Equal(HttpStatusCode.OK, requested.StatusCode);

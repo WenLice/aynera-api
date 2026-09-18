@@ -1,5 +1,6 @@
 namespace Aynera.Domain.Auth.Responses;
 
+/// <summary>Staff list row. Profile fields are null when the member has no profile row yet.</summary>
 public sealed record MemberAdminDto(
     Guid Id,
     string? Phone,
@@ -9,10 +10,10 @@ public sealed record MemberAdminDto(
     bool IsActive,
     bool IsRestricted,
     DateTimeOffset CreatedAtUtc,
-    string? FirstName,
-    string? LastName,
+    string? Name,
     string? Gender,
     DateOnly? DateOfBirth,
     string? City,
     string? Religion,
-    Guid? CityId = null);
+    Guid? CityId = null,
+    string? Nickname = null);

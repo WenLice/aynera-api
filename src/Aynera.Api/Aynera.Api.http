@@ -11,8 +11,7 @@ Content-Type: application/json
 {
   "phone": "9876543210",
   "email": "member@example.com",
-  "firstName": "Ada",
-  "lastName": "Lovelace",
+  "name": "Ada Lovelace",
   "gender": "Female",
   "dateOfBirth": "1990-05-15",
   "city": "Mumbai",
@@ -65,6 +64,22 @@ Content-Type: application/json
 ### Me
 GET {{Aynera.Api_HostAddress}}/members/me
 Authorization: Bearer {{access_token}}
+
+### SaveProfile (full replace — omitted optional fields are cleared)
+PUT {{Aynera.Api_HostAddress}}/members/me/profile
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "name": "Ada Lovelace",
+  "nickname": "Adz",
+  "gender": "Female",
+  "dateOfBirth": "1990-05-15",
+  "city": "Bangalore",
+  "heightCm": 168,
+  "hometown": "Pune",
+  "work": "Writes compilers"
+}
 
 ### UploadPhotos
 POST {{Aynera.Api_HostAddress}}/photos/Upload

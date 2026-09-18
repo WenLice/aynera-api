@@ -92,7 +92,7 @@ public sealed class RegistrationStepsEndpointsTests(AuthApiFactory factory)
         var owner = NewPhone();
         var ownerEmail = $"owner-{owner}@example.com";
         var registered = await anonymous.PostAsJsonAsync("/members/register", new CreateMemberRequest(
-            owner, "Owner", "Member", Domain.Auth.Enums.Gender.Female, new DateOnly(1993, 3, 3), "Bangalore", ownerEmail));
+            owner, "Owner Member", Domain.Auth.Enums.Gender.Female, new DateOnly(1993, 3, 3), "Bangalore", ownerEmail));
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
 
         var phone = NewPhone();
