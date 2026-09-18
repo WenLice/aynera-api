@@ -63,6 +63,7 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         existing.Name = profile.Name.Trim();
         existing.Nickname = Normalize(profile.Nickname);
         existing.Gender = gender;
+        existing.GenderIsPublic = profile.GenderIsPublic;
         existing.DateOfBirth = profile.DateOfBirth;
         existing.City = profile.City.Trim();
         existing.CityId = profile.CityId;

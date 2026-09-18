@@ -146,6 +146,36 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
         Assert.Equal(expected, (await Body<AuthAccountDto>(response))!.Data!.Profile!.Gender);
     }
 
+    /// <summary>
+    /// "Prefer not to say" hides the gender; it does not withdraw the member from matching,
+    /// so the gender is still stored and still returned to the member themselves.
+    /// </summary>
+    [Fact]
+    public async Task GenderIsPublic_DefaultsTrue_AndCanBeTurnedOff()
+    {
+        var client = await PhoneVerifiedClientAsync();
+
+        var shown = await client.PutAsJsonAsync("/members/me/profile", new UpdateMemberProfileRequest(
+            "Ada Lovelace",
+            Gender.Female,
+            Adult,
+            "Delhi"));
+        Assert.True((await Body<AuthAccountDto>(shown))!.Data!.Profile!.GenderIsPublic);
+
+        var hidden = await client.PutAsJsonAsync("/members/me/profile", new UpdateMemberProfileRequest(
+            "Ada Lovelace",
+            Gender.Female,
+            Adult,
+            "Delhi",
+            GenderIsPublic: false));
+        Assert.Equal(HttpStatusCode.OK, hidden.StatusCode);
+
+        var profile = (await Body<AuthAccountDto>(hidden))!.Data!.Profile!;
+        Assert.False(profile.GenderIsPublic);
+        // Hidden, not withdrawn — the value the hard filter needs is still there.
+        Assert.Equal("Female", profile.Gender);
+    }
+
     [Fact]
     public async Task UnknownCity_IsRefused_AndLeavesNoProfile()
     {

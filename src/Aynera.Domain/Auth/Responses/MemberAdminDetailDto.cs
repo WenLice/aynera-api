@@ -24,4 +24,6 @@ public sealed record MemberAdminDetailDto(
     string? Nickname = null,
     int? HeightCm = null,
     string? Hometown = null,
-    string? Work = null);
+    string? Work = null,
+    /// <summary>False when the member hides their gender. Null only when there is no profile row.</summary>
+    bool? GenderIsPublic = null);

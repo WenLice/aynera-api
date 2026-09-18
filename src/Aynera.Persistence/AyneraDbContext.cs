@@ -89,6 +89,7 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
                 .HasConversion<string>()
                 .HasMaxLength(32)
                 .IsRequired();
+            entity.Property(x => x.GenderIsPublic).IsRequired();
             entity.Property(x => x.DateOfBirth).IsRequired();
             entity.Property(x => x.City).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Hometown).HasMaxLength(100);

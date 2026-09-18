@@ -17,4 +17,5 @@ public sealed record MemberProfileRecord(
     int? HeightCm = null,
     string? Hometown = null,
     string? Work = null,
-    string? Religion = null);
+    string? Religion = null,
+    bool GenderIsPublic = true);

@@ -20,6 +20,14 @@ public sealed class MemberProfile : ISoftDeletable
     public string? Nickname { get; set; }
 
     public Gender Gender { get; set; }
+
+    /// <summary>
+    /// Whether the gender appears on the member's profile. It is always used by the
+    /// reciprocal hard filter either way — "prefer not to say" hides it, it does not
+    /// withdraw the member from matching.
+    /// </summary>
+    public bool GenderIsPublic { get; set; } = true;
+
     public DateOnly DateOfBirth { get; set; }
     /// <summary>Canonical catalog name of the member's city (from <see cref="EarlyAccessCity"/>).</summary>
     public string City { get; set; } = string.Empty;

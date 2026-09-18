@@ -19,4 +19,5 @@ public sealed record MemberAdminRecord(
     string? Nickname = null,
     int? HeightCm = null,
     string? Hometown = null,
-    string? Work = null);
+    string? Work = null,
+    bool? GenderIsPublic = null);

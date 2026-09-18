@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Aynera.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Aynera.Persistence.Migrations
 {
     [DbContext(typeof(AyneraDbContext))]
-    partial class AyneraDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260918195224_AddGenderVisibility")]
+    partial class AddGenderVisibility
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

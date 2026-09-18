@@ -18,4 +18,5 @@ public sealed record CreateMemberRequest(
     string? Hometown = null,
     string? Work = null,
     string? Religion = null,
+    bool GenderIsPublic = true,
     string? Password = null);

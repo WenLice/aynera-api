@@ -13,8 +13,11 @@ public enum Gender
     Other = 2,
 
     /// <summary>
-    /// An explicit decline, not a missing answer. Distinct from <see cref="Other"/> so
-    /// matchmaking can tell "I'd rather not say" from "third gender / transgender".
+    /// Legacy. "Prefer not to say" is about display, not identity, so it is now
+    /// <c>MemberProfile.GenderIsPublic</c> instead — a member states a gender for the
+    /// reciprocal hard filter and chooses separately whether it appears on their profile.
+    /// No client offers this value and nothing new writes it; it stays so the rows written
+    /// while it was offered still parse, rather than having a gender invented for them.
     /// </summary>
     PreferNotToSay = 3
 }

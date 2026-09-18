@@ -30,7 +30,8 @@ public sealed class ApplicationMappingProfile : Profile
                 src.HeightCm,
                 src.Hometown,
                 src.Work,
-                src.Religion))
+                src.Religion,
+                src.GenderIsPublic))
             .ForAllMembers(o => o.Ignore());
 
         CreateMap<MemberAdminRecord, MemberAdminDto>()

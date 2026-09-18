@@ -608,7 +608,8 @@ public sealed class UserRepository : IUserRepository
             entity.Profile?.Nickname,
             entity.Profile?.HeightCm,
             entity.Profile?.Hometown,
-            entity.Profile?.Work);
+            entity.Profile?.Work,
+            entity.Profile?.GenderIsPublic);
 
     public async Task<int> CountActiveAdminsAsync(CancellationToken cancellationToken)
     {

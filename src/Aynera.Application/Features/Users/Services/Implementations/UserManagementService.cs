@@ -171,7 +171,8 @@ public sealed class UserManagementService : IUserManagementService
             row.Nickname,
             row.HeightCm,
             row.Hometown,
-            row.Work);
+            row.Work,
+            row.GenderIsPublic);
     }
 
     public async Task<MemberPhotoBytes> GetMemberPhotoAsync(

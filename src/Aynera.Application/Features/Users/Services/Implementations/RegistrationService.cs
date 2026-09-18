@@ -67,7 +67,8 @@ public sealed class RegistrationService(
                         HeightCm: request.HeightCm,
                         Hometown: request.Hometown,
                         Work: request.Work,
-                        Religion: request.Religion),
+                        Religion: request.Religion,
+                        GenderIsPublic: request.GenderIsPublic),
                     ct);
 
                 await emails.EnqueueAsync(createdUser.Id, ct);
@@ -344,7 +345,8 @@ public sealed class RegistrationService(
                         HeightCm: request.HeightCm,
                         Hometown: request.Hometown,
                         Work: request.Work,
-                        Religion: request.Religion),
+                        Religion: request.Religion,
+                        GenderIsPublic: request.GenderIsPublic),
                     ct);
 
                 return (account, previous, saved);

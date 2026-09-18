@@ -19,4 +19,6 @@ public sealed record UpdateMemberProfileRequest(
     int? HeightCm = null,
     string? Hometown = null,
     string? Work = null,
-    string? Religion = null);
+    string? Religion = null,
+    /// <summary>Set false for "prefer not to say" — hides the gender, still matches on it.</summary>
+    bool GenderIsPublic = true);
