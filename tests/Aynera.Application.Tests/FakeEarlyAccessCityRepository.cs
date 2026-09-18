@@ -8,10 +8,22 @@ public sealed class FakeEarlyAccessCityRepository : IEarlyAccessCityRepository
 {
     private readonly List<EarlyAccessCityRecord> _all = [];
 
+    /// <summary>
+    /// Default set mirrors the real seed: Bangalore is the only Wave 1 city, Delhi and Mumbai
+    /// are Wave 2 but still active. Wave is not an access gate, so every one of them resolves.
+    /// </summary>
     public FakeEarlyAccessCityRepository(params string[] openCities)
     {
+        if (openCities.Length == 0)
+        {
+            _all.Add(new EarlyAccessCityRecord(Guid.NewGuid(), "Bangalore", 1, 1, true, DateTimeOffset.UtcNow, null));
+            _all.Add(new EarlyAccessCityRecord(Guid.NewGuid(), "Delhi", 2, 2, true, DateTimeOffset.UtcNow, null));
+            _all.Add(new EarlyAccessCityRecord(Guid.NewGuid(), "Mumbai", 2, 3, true, DateTimeOffset.UtcNow, null));
+            return;
+        }
+
         var order = 1;
-        foreach (var name in openCities.Length == 0 ? ["Delhi", "Bangalore", "Mumbai"] : openCities)
+        foreach (var name in openCities)
         {
             _all.Add(new EarlyAccessCityRecord(Guid.NewGuid(), name, 1, order++, true, DateTimeOffset.UtcNow, null));
         }

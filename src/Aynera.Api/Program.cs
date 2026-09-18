@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.OpenApi;
 using Serilog;
+using System.Text.Json.Serialization;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -44,6 +45,13 @@ builder.Services.AddControllers(options =>
 {
     options.Filters.Add<FluentValidationActionFilter>();
     options.Filters.Add<DiagnosticLoggingFilter>();
+})
+.AddJsonOptions(options =>
+{
+    // Enums arrive by name ("Female"), which is how every response already reports them —
+    // `Gender` is the only enum in a request or response DTO, and it came back as a string while
+    // only accepting a number. Numbers are still accepted, so existing callers are unaffected.
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 builder.Services.AddValidatorsFromAssemblyContaining<CreateMemberRequestValidator>();
 builder.Services.Configure<ApiBehaviorOptions>(options =>

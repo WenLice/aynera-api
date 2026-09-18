@@ -9,11 +9,17 @@ namespace Aynera.Infrastructure;
 
 public sealed class EarlyAccessCitySeedHostedService : IHostedService
 {
-    private static readonly (string Name, int Wave, int SortOrder)[] Wave1 =
+    /// <summary>
+    /// Launch catalog defaults for a fresh database. Wave 1 is open for registration;
+    /// later waves are listed so the public site can collect interest. Bangalore opens first.
+    /// Existing rows are never touched here — see the BangaloreOpensFirst migration, and
+    /// <c>PATCH /early-access/cities/{id}</c> for changes after that.
+    /// </summary>
+    private static readonly (string Name, int Wave, int SortOrder)[] SeedCities =
     [
-        ("Delhi", 1, 1),
-        ("Bangalore", 1, 2),
-        ("Mumbai", 1, 3)
+        ("Bangalore", 1, 1),
+        ("Delhi", 2, 2),
+        ("Mumbai", 2, 3)
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -32,7 +38,7 @@ public sealed class EarlyAccessCitySeedHostedService : IHostedService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AyneraDbContext>();
 
-        foreach (var (name, wave, sortOrder) in Wave1)
+        foreach (var (name, wave, sortOrder) in SeedCities)
         {
             var exists = await db.EarlyAccessCities
                 .IgnoreQueryFilters()

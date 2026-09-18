@@ -115,6 +115,35 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
         Assert.Null(profile.Religion);
     }
 
+    /// <summary>
+    /// The app sends <c>gender</c> as the name, which is also how every response reports it.
+    /// Typed clients serialise the enum as a number, so only raw JSON covers this.
+    /// </summary>
+    [Theory]
+    [InlineData("\"Female\"", "Female")]
+    [InlineData("\"Other\"", "Other")]
+    [InlineData("1", "Female")]
+    public async Task Gender_IsAcceptedByNameAndByNumber(string genderJson, string expected)
+    {
+        var client = await PhoneVerifiedClientAsync();
+
+        var json = $$"""
+            {
+              "name": "Ada Lovelace",
+              "gender": {{genderJson}},
+              "dateOfBirth": "{{Adult:yyyy-MM-dd}}",
+              "city": "Delhi"
+            }
+            """;
+
+        var response = await client.PutAsync(
+            "/members/me/profile",
+            new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(expected, (await Body<AuthAccountDto>(response))!.Data!.Profile!.Gender);
+    }
+
     [Fact]
     public async Task UnknownCity_IsRefused_AndLeavesNoProfile()
     {
