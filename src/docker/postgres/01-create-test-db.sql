@@ -1,1 +1,1 @@
-CREATE DATABASE elaris_test;
+CREATE DATABASE aynera_test;

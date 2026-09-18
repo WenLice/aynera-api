@@ -1,6 +1,6 @@
-# elaris-api documentation
+# aynera-api documentation
 
-Repo-local docs for the backend. Product-wide specs and backend plans live in `elaris-admin/docs` (especially `engineering/backend/` for auth, logging, middleware).
+Repo-local docs for the backend. Product-wide specs and backend plans live in `aynera-admin/docs` (especially `engineering/backend/` for auth, logging, middleware).
 
 | Doc | Description |
 |-----|-------------|

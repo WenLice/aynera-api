@@ -2,13 +2,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: elaris
-      POSTGRES_PASSWORD: elaris
-      POSTGRES_DB: elaris
+      POSTGRES_USER: aynera
+      POSTGRES_PASSWORD: Admin@1
+      POSTGRES_DB: aynera
     ports:
       - "5432:5432"
     volumes:
-      - elaris_pg:/var/lib/postgresql/data
+      - aynera_pg:/var/lib/postgresql/data
       - ./docker/postgres:/docker-entrypoint-initdb.d:ro
 
   redis:
@@ -23,12 +23,12 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:8080
       ASPNETCORE_ENVIRONMENT: Development
-      ELARIS_DB_CONNECTION: Host=postgres;Port=5432;Database=elaris;Username=elaris;Password=elaris
-      ELARIS_REDIS: redis:6379
-      ELARIS_JWT_SIGNING_KEY: dev-only-elaris-jwt-signing-key-change-in-prod-32chars
-      ELARIS_JWT_ISSUER: elaris-api
-      ELARIS_JWT_AUDIENCE_MEMBER: member
-      ELARIS_JWT_AUDIENCE_ADMIN: admin
+      AYNERA_DB_CONNECTION: Host=postgres;Port=5432;Database=aynera;Username=aynera;Password=Admin@1
+      AYNERA_REDIS: redis:6379
+      AYNERA_JWT_SIGNING_KEY: dev-only-aynera-jwt-signing-key-change-in-prod-32chars
+      AYNERA_JWT_ISSUER: aynera-api
+      AYNERA_JWT_AUDIENCE_MEMBER: member
+      AYNERA_JWT_AUDIENCE_ADMIN: admin
     ports:
       - "8080:8080"
     depends_on:
@@ -36,4 +36,4 @@ services:
       - redis
 
 volumes:
-  elaris_pg:
+  aynera_pg:

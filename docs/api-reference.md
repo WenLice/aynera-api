@@ -1,11 +1,12 @@
-# ElAris API reference
+# Aynera API reference
 
-Contract documentation for **`elaris-api`**. Keep this file updated whenever endpoints, DTOs, or status codes change.
+Contract documentation for **`aynera-api`**. Keep this file updated whenever endpoints, DTOs, or status codes change.
 
 - Base URL (local SDK): typically `http://localhost:5057` (check launchSettings)
 - Base URL (Docker Compose `api` service): `http://localhost:8080`
-- Interactive (Development only): `/swagger`
-- Envelope type: `ApiResponse<T>` (`Elaris.Domain.Common`)
+- Interactive (Development only): `/swagger` — two documents, selectable from the top-right dropdown: **Aynera Member API** (`/swagger/member/swagger.json`: public and member endpoints) and **Aynera Admin API** (`/swagger/admin/swagger.json`: staff endpoints plus admin login). An endpoint's document is derived from its authorization policy (`Admin`/`SuperAdmin` → Admin doc), so the split cannot drift from what the backend enforces.
+- Routing: every route starts with its controller's prefix (`auth`, `members`, `photos`, `introduction-video`, `admins`, `admissions`, `venues`, …). List actions end in `/GetAll` and collection POSTs carry an action segment (`/Create`, `/Upload`, `/register`, …); a bare controller prefix is never a route and no path is served by both GET and POST. Single-resource routes stay REST (`GET|PATCH|DELETE …/{id}`, `…/me`). The former `admin/*` and `public/*` aliases were removed and `users/*` was split into `members/*` + `admins/*` on 2026-09-13; member media moved from `members/me/*` to `photos/*` and `introduction-video/*` (2026-09-15). No aliases are kept; access control is by policy only, never by URL prefix. `ControllerRoutingTests` enforces all of this.
+- Envelope type: `ApiResponse<T>` (`Aynera.Domain.Common`)
 - Content type: `application/json` unless noted
 
 Related: [developer-guide.md](./developer-guide.md), [setup.md](./setup.md).
@@ -41,7 +42,7 @@ List endpoints that can grow (waitlist, suggestions, feedback, member applicatio
 | `hasNextPage` | `bool` | |
 | `hasPreviousPage` | `bool` | |
 
-Query: `page` (default `1`) and `pageSize` (default `15`, max `50`). Example: `GET /admin/suggestions?page=2&pageSize=20`. Invalid `page` or `pageSize` returns `validation_failed` (400).
+Query: `page` (default `1`) and `pageSize` (default `15`, max `50`). Example: `GET /suggestions?page=2&pageSize=20`. Invalid `page` or `pageSize` returns `validation_failed` (400).
 
 Cities and member photos stay unpaged (small fixed catalogs).
 
@@ -58,15 +59,27 @@ Cities and member photos stay unpaged (small fixed catalogs).
 
 | Policy | Used by | Requirement |
 |--------|---------|-------------|
-| Anonymous | `/auth/*`, `/admin/otp/*`, `POST /admin/password`, and `POST /users/register` | No token |
-| `Member` | `GET /users/me`, `POST /users/me/password`, and other `/users/*` | JWT with role `member` and `aud=member` |
-| `Admin` | Early-access city writes and `GET /early-access/signups`; `GET /admin/me`; `GET /admin/members`, `GET /admin/members/{id}`, `POST /admin/members/{id}/restrict|unrestrict` (super-admin); `POST /admin/admins`; `GET /admin/suggestions` and `GET /admin/feedback` | JWT with role `admin` and `aud=admin` |
+| Anonymous | `/auth/*`, `/auth/admin/otp/*`, `POST /auth/admin/password`, and `POST /members/register` | No token |
+| `Member` | Normal member profile/media/password operations and deactivation | Member JWT role/audience plus an existing active, unrestricted Member account |
+| `Admin` | Admin reads, audit/inbox, early-access administration | Admin JWT role/audience plus an existing active, unrestricted Admin account |
+| `SuperAdmin` | Admin management and member restrict/unrestrict | Admin policy plus current database super-admin privileges |
+| `MemberReactivation` | `POST /members/me/reactivate` | Member JWT role/audience and existing Member account; permits inactivity. Service rejects restriction under the account lock |
+| `MemberAccountDeletion` | `DELETE /members/me` | Member JWT role/audience and existing Member account; permits inactivity/restriction |
+
+All account policies reject deleted, missing or wrong-kind accounts. Audience values follow configured member/admin audiences. Anonymous reactivation request/recover and logout remain available with their existing proof requirements. Policy denials return HTTP 403 and may have no JSON body; missing/invalid/expired JWTs return 401. Restricted reactivation retains its service-level `account_restricted` response.
+
+A fallback policy (`RequireAuthenticatedUser`) applies to any endpoint that declares neither `[Authorize(Policy = …)]` nor `[AllowAnonymous]`, so an undeclared action is denied rather than exposed. `ControllerRoutingTests` asserts every action declares one of the two. A side effect: an unknown path returns 401 to anonymous callers and 404 to authenticated ones.
+
+State is checked on every authorized request. This is not permanent token revocation: the same unexpired token can work after account state is restored. Requests already authorized may finish. Refresh-session revocation remains separate.
 
 ### Common error codes
 
 | `errorCode` | Typical HTTP | When |
 |-------------|--------------|------|
 | `validation_failed` | 400 | FluentValidation / model binding failed |
+| `city_not_supported` | 400 | Register: `city` is not an active city in the catalog (`GET /early-access/cities/GetAll`) |
+| `user_already_exists` | 409 | Registration: the phone already has a live member account — sign in instead |
+| `email_already_exists` | 409 | Registration / email step: the email belongs to another live account |
 | `otp_rate_limited` | 429 | Too many OTP requests (identifier/IP) |
 | `otp_expired` | 401 | OTP missing, wrong purpose, or past TTL |
 | `otp_invalid` | 401 | Wrong code |
@@ -75,6 +88,7 @@ Cities and member photos stay unpaged (small fixed catalogs).
 | `invalid_audience` | 400 | Audience not allowed for this login door (`member` on app OTP) |
 | `invalid_refresh` | 401 | Refresh missing/unknown/user gone |
 | `refresh_reuse` | 401 | Refresh already rotated/revoked (family revoked) |
+| `invalid_account` | 401 | Account kind no longer matches the session audience, or session audience is unsupported |
 | `refresh_expired` | 401 | Refresh past expiry |
 | `password_not_set` | 400 | Password login on an account with no password |
 | `password_invalid` | 401 | Wrong password (or current password when changing) |
@@ -140,7 +154,7 @@ See conventions above.
 | `lastName` | `string` | Yes | Max 100 |
 | `gender` | `string` | Yes | `Male` \| `Female` \| `Other` |
 | `dateOfBirth` | `date` | Yes | ISO date; must be 18+ (`underage` if not) |
-| `city` | `string` | Yes | Max 100; free text for now |
+| `city` | `string` | Yes | Max 100; must match an **active catalog city** by name, case-insensitive (`GET /early-access/cities/GetAll`). The canonical name and its `cityId` are stored; otherwise `city_not_supported` |
 | `email` | `string` | Yes | Required; valid email |
 | `religion` | `string` or `null` | No | Max 100 |
 | `password` | `string` or `null` | No | Optional; min 8 chars with a lowercase letter and a number. Enables `POST /auth/password` immediately. |
@@ -153,8 +167,9 @@ See conventions above.
 | `lastName` | `string` | |
 | `gender` | `string` | |
 | `dateOfBirth` | `date` | |
-| `city` | `string` | |
+| `city` | `string` | Canonical catalog name |
 | `religion` | `string` or `null` | |
+| `cityId` | `guid` | Shared city-catalog id (same key as `Venue.cityId`); every member has exactly one |
 
 ### `RequestMemberOtpRequest`
 
@@ -292,15 +307,15 @@ See conventions above.
 
 ## Endpoints
 
-### Users — Register
+### Members — Register
 
 | | |
 |--|--|
 | **Name** | Register |
-| **Purpose** | Register a member account **and** profile. Blocked if a non-deleted account exists for the phone (`isActive=true` → use existing; `isActive=false` → activate first). Soft-deleted rows (`isDeleted=true`) do **not** block; a **new** account id is created. Requires firstName, lastName, gender, dateOfBirth (18+), city, email; optional religion. Automatically emails a verification link; `emailConfirmed` stays false until VerifyEmail |
-| **Method / path** | `POST /users/register` |
+| **Purpose** | Register a member account **and** profile. Blocked if a non-deleted account exists for the phone (`isActive=true` → use existing; `isActive=false` → activate first). Soft-deleted rows (`isDeleted=true`) do **not** block; a **new** account id is created. Requires firstName, lastName, gender, dateOfBirth (18+), city, email; optional religion. Atomically creates the account/profile and queues a verification email for retryable delivery; `emailConfirmed` stays false until VerifyEmail |
+| **Method / path** | `POST /members/register` |
 | **Auth** | Anonymous |
-| **Tags** | Users |
+| **Tags** | Members |
 
 **Request**
 
@@ -317,9 +332,27 @@ See conventions above.
 | HTTP | Body | When |
 |------|------|------|
 | 200 | `ApiResponse<AuthAccountDto>` | Member created |
-| 400 | `ApiResponse<object?>` | Validation failed / invalid phone |
+| 400 | `ApiResponse<object?>` | Validation failed / invalid phone / `underage` / `city_not_supported` |
 | 409 | `ApiResponse<object?>` | Phone/email in use (`user_already_exists` / `email_already_exists`) or deactivated (`account_deactivated`) |
 | 500 | `ApiResponse<object?>` | Unexpected |
+
+---
+
+### Members — app registration (step-wise)
+
+The mobile app registers in the order its screens ask: phone → SMS code → email → emailed code → profile. The
+one-shot `POST /members/register` above stays for the website and API clients; the app never calls it.
+
+| Step | Method / path | Auth | Body | Response `data` | Errors |
+|------|---------------|------|------|-----------------|--------|
+| 1 StartPhoneRegistration | `POST /members/register/phone` | Anonymous | `{ phone }` (Indian mobile) | `RequestMemberOtpResponse` | 400 `validation_failed`; 409 `user_already_exists` (sign in instead), `account_deactivated`, `account_restricted`; 429 `otp_rate_limited` |
+| 2 VerifyPhoneRegistration | `POST /members/register/phone/verify` | Anonymous | `{ phone, code }` | `TokenResponse` — **creates a Draft member account** (phone confirmed, no email/profile/password) and signs it in (`amr=otp`) | 401 `otp_invalid` / `otp_expired` / `otp_locked`; 409 as above if the number was taken in between |
+| 3 StartEmailVerification | `POST /members/me/email` | `Member` | `{ email }` | `RequestMemberOtpResponse` | 409 `email_already_exists`; 429 `otp_rate_limited` |
+| 4 VerifyEmailCode | `POST /members/me/email/verify` | `Member` | `{ email, code }` | `AuthAccountDto` with the email set and `emailConfirmed: true` | 401 OTP codes; 409 `email_already_exists` |
+
+Notes: codes are six digits, valid `Aynera:Otp:TtlSeconds` (default 300 s), single-use (a consumed code answers `otp_expired`), and rate-limited per destination and IP like login. OTP purposes are `registration` (phone) and `email_verification` (email) — a login code cannot be replayed here and vice versa. After step 2 the account's admission is `Draft`; `GET /members/me` returns `profile: null` until the profile steps are saved. Every step is audited (`otp_requested`, `otp_failed`, `member_registered`, `email_confirmed`).
+
+Dev only: with `Aynera:Otp:RevealCodesInLogs = true` (set in `appsettings.Development.json`) the Console SMS/email providers print the code they would have sent as a warning-level log line. The API forces the flag off in any environment other than Development.
 
 ---
 
@@ -354,15 +387,15 @@ See conventions above.
 
 ---
 
-### Users — DeleteAccount
+### Members — DeleteAccount
 
 | | |
 |--|--|
 | **Name** | DeleteAccount |
 | **Purpose** | Soft-delete the authenticated member and related rows (e.g. refresh sessions). Phone is freed for a brand-new registration; old account data is not restored |
-| **Method / path** | `DELETE /users/account` |
-| **Auth** | Bearer JWT + policy **`Member`** |
-| **Tags** | Users |
+| **Method / path** | `DELETE /members/me` |
+| **Auth** | Bearer JWT + policy **`MemberAccountDeletion`** |
+| **Tags** | Members |
 
 **Request**
 
@@ -384,31 +417,77 @@ See conventions above.
 
 ---
 
-### Users — Deactivate
+### Members — Deactivate
 
 | | |
 |--|--|
 | **Name** | Deactivate |
 | **Purpose** | Mark account deactivated. Re-registration blocked until activated; refresh sessions revoked |
-| **Method / path** | `POST /users/deactivate` |
+| **Method / path** | `POST /members/me/deactivate` |
 | **Auth** | Bearer JWT + policy **`Member`** |
-| **Tags** | Users |
+| **Tags** | Members |
 
 **Response types:** `200` success; `401` unauthorized; `403` if already in a blocked state as applicable
 
 ---
 
-### Users — Reactivate
+### Members — Reactivate
 
 | | |
 |--|--|
 | **Name** | Reactivate |
-| **Purpose** | Reactivate a deactivated account (not available for soft-deleted accounts) |
-| **Method / path** | `POST /users/reactivate` |
-| **Auth** | Bearer JWT + policy **`Member`** |
-| **Tags** | Users |
+| **Purpose** | Reactivate a deactivated account using a still-valid member access token (not available for soft-deleted or restricted accounts) |
+| **Method / path** | `POST /members/me/reactivate` |
+| **Auth** | Bearer JWT + policy **`MemberReactivation`** |
+| **Tags** | Members |
 
-**Response types:** `200` success; `409` `account_deleted` if soft-deleted
+**Response types:** `200` success; `403` `account_restricted`; policy-level `403` for a deleted/missing/wrong-kind account; `401` for an invalid or expired JWT
+
+After the access token expires, use RequestReactivation then RecoverMember. Login stays blocked until the account is active.
+
+---
+
+### Members — RequestReactivation
+
+| | |
+|--|--|
+| **Name** | RequestReactivation |
+| **Purpose** | Send a reactivation OTP when a matching deactivated member exists. Always returns 200 so callers cannot probe whether an account exists. Identifier alone does not reactivate. |
+| **Method / path** | `POST /members/reactivate/request` |
+| **Auth** | Anonymous |
+| **Tags** | Members |
+
+**Request**
+
+| Source | Model |
+|--------|-------|
+| Body | `RequestMemberReactivationRequest` (`identifier`) |
+
+**Response `data` model:** `RequestMemberOtpResponse`
+
+**Response types:** `200` same shape as ForgotPassword; `429` `otp_rate_limited`
+
+---
+
+### Members — RecoverMember
+
+| | |
+|--|--|
+| **Name** | RecoverMember |
+| **Purpose** | Verify the reactivation OTP and set the member active. Does not restore revoked refresh sessions or issue tokens. Sign in after recovery. |
+| **Method / path** | `POST /members/reactivate/recover` |
+| **Auth** | Anonymous |
+| **Tags** | Members |
+
+**Request**
+
+| Source | Model |
+|--------|-------|
+| Body | `RecoverMemberRequest` (`identifier`, `code`) |
+
+**Response types:** `200` success; `401` `otp_expired` / `otp_invalid` / `otp_locked`; `403` `account_restricted`; `404` `user_not_found`; `409` `account_deleted`
+
+Login, password reset, and identifier-only bodies cannot reactivate an inactive account.
 
 ---
 
@@ -450,7 +529,7 @@ See conventions above.
 | | |
 |--|--|
 | **Name** | VerifySms |
-| **Purpose** | Validate the login OTP for an **existing** registered member; mark that phone or email confirmed; issue access + refresh tokens. Path name is historical — it verifies SMS **or** email OTP. Does **not** create accounts |
+| **Purpose** | Validate the login OTP for an **existing** registered member; mark that phone or email confirmed; issue access + refresh tokens. Path name is historical — it verifies SMS **or** email OTP. Does **not** create accounts. The hashed challenge is consumed once (atomic in Redis and in-memory). |
 | **Method / path** | `POST /auth/verifysms` |
 | **Auth** | Anonymous |
 | **Tags** | Auth |
@@ -577,6 +656,8 @@ See conventions above.
 
 ### Auth — Refresh
 
+Rotation is atomic and serialized with account deactivation/restriction. Concurrent use of the same refresh token creates at most one replacement; the other request returns `refresh_reuse` and revokes the family, including the replacement. Clients should run only one refresh at a time and sign in again on reuse. Failure/cancellation during replacement persistence rolls back both writes. Expected denial revocations commit before the error response.
+
 | | |
 |--|--|
 | **Name** | Refresh |
@@ -642,7 +723,7 @@ See conventions above.
 |--|--|
 | **Name** | ListEarlyAccessCities |
 | **Purpose** | Active cities for marketing Early Register (`/apply`); Admin receive full catalog |
-| **Method / path** | `GET /early-access/cities` |
+| **Method / path** | `GET /early-access/cities/GetAll` |
 | **Auth** | Anonymous (Admin role → all cities including inactive) |
 | **Tags** | EarlyAccess |
 
@@ -666,8 +747,11 @@ See conventions above.
 |-----------|------|----------|--------------------|
 | `fullName` | `string` | Yes | Max 200 |
 | `email` | `string` | Yes | Normalized lower-case; unique upsert key |
+| `phone` | `string` | Yes | Max 32 characters |
 | `city` | `string` | Yes | Must match an active early-access city |
-| `interest` | `string` | Yes | `Elaris` or `Elaris Professionals` / `ElarisProfessionals` |
+| `interest` | `string` | Yes | `Aynera` or `Aynera Professionals` / `AyneraProfessionals` |
+| `intent` | `string` | Yes | Selected track: `Fluid` or `Intent`; max 64 characters |
+| `meetPreference` | `string` | Yes | `Duos`, `Squads`, or `Both`; max 32 characters |
 | `isAdult` | `bool` | Yes | Must be `true` |
 | `marketingConsent` | `bool` | Yes | Must be `true` |
 
@@ -677,19 +761,19 @@ See conventions above.
 
 ### Early-access cities (Admin writes)
 
-`GET /early-access/cities` is anonymous (active cities for `/apply`). Callers with the `admin` role and `aud=admin` receive the full catalog (including inactive).  
+`GET /early-access/cities/GetAll` is anonymous (active cities for `/apply`). Callers with the `admin` role and `aud=admin` receive the full catalog (including inactive).  
 `POST` / `PATCH` / `DELETE` require Admin JWT (`Admin` policy). Soft-delete + `isActive` supported.
 
 | Name | Method / path |
 |------|----------------|
-| ListEarlyAccessCities | `GET /early-access/cities` |
-| ListEarlyAccessSignups | `GET /early-access/signups` (Admin) |
-| CreateEarlyAccessCity | `POST /early-access/cities` |
+| ListEarlyAccessCities | `GET /early-access/cities/GetAll` |
+| ListEarlyAccessSignups | `GET /early-access/signups/GetAll` (Admin) |
+| CreateEarlyAccessCity | `POST /early-access/cities/Create` |
 | UpdateEarlyAccessCity | `PATCH /early-access/cities/{id}` |
 | DeleteEarlyAccessCity | `DELETE /early-access/cities/{id}` (soft delete) |
 
 `CreateEarlyAccessCityRequest`: `name`, `wave`, `sortOrder`, `isActive`.  
-Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up when active.
+Wave 2+ = add cities here; anonymous `GET /early-access/cities/GetAll` picks them up when active.
 
 ---
 
@@ -699,7 +783,7 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | SubmitSuggestion |
 | **Purpose** | Product idea submissions from `/suggest` |
-| **Method / path** | `POST /public/suggestions` |
+| **Method / path** | `POST /suggestions/Create` |
 | **Auth** | Anonymous |
 | **Tags** | Public |
 
@@ -713,7 +797,7 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | SubmitFeedback |
 | **Purpose** | Grievance / support channel from `/grievance` (not product ideas) |
-| **Method / path** | `POST /public/feedback` |
+| **Method / path** | `POST /feedback/Create` |
 | **Auth** | Anonymous |
 | **Tags** | Public |
 
@@ -729,7 +813,7 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | ListEarlyAccessSignups |
 | **Purpose** | Waitlist inbox. Newest first. Includes name, email, phone, city, and interest. Soft-deleted rows are omitted. |
-| **Method / path** | `GET /early-access/signups` |
+| **Method / path** | `GET /early-access/signups/GetAll` |
 | **Auth** | `Admin` |
 | **Tags** | EarlyAccess |
 
@@ -746,7 +830,7 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 | `email` | `string` | |
 | `phone` | `string` or `null` | |
 | `city` | `string` | |
-| `interest` | `string` | `Elaris` or `Elaris Professionals` |
+| `interest` | `string` | `Aynera` or `Aynera Professionals` |
 | `isAdult` | `bool` | |
 | `marketingConsent` | `bool` | |
 | `isActive` | `bool` | |
@@ -761,7 +845,7 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | ListSuggestions |
 | **Purpose** | Product-idea inbox. Newest first. Includes name, email, phone, and message. |
-| **Method / path** | `GET /admin/suggestions` |
+| **Method / path** | `GET /suggestions/GetAll` |
 | **Auth** | `Admin` |
 | **Tags** | Admin |
 
@@ -777,7 +861,7 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | ListFeedback |
 | **Purpose** | Grievance / support inbox. Newest first. Includes name, email, phone, message, and whether the email matched a member. |
-| **Method / path** | `GET /admin/feedback` |
+| **Method / path** | `GET /feedback/GetAll` |
 | **Auth** | `Admin` |
 | **Tags** | Admin |
 
@@ -787,15 +871,15 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 
 ---
 
-### Users — current account
+### Members — current account
 
 | | |
 |--|--|
 | **Name** | Me |
 | **Purpose** | Return the authenticated member account |
-| **Method / path** | `GET /users/me` |
+| **Method / path** | `GET /members/me` |
 | **Auth** | Bearer JWT + policy **`Member`** |
-| **Tags** | Users |
+| **Tags** | Members |
 
 **Request**
 
@@ -819,15 +903,15 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 
 ---
 
-### Users — SetPassword
+### Members — SetPassword
 
 | | |
 |--|--|
 | **Name** | SetPassword |
 | **Purpose** | Set a password if none exists, or change it when `currentPassword` is supplied |
-| **Method / path** | `POST /users/me/password` |
+| **Method / path** | `POST /members/me/password` |
 | **Auth** | Bearer JWT + policy **`Member`** |
-| **Tags** | Users |
+| **Tags** | Members |
 
 **Request**
 
@@ -855,7 +939,7 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | OtpRequest |
 | **Purpose** | Start admin login by sending an OTP to a registered admin phone or email. Member accounts return `user_not_found`. No public admin register. |
-| **Method / path** | `POST /admin/otp/request` |
+| **Method / path** | `POST /auth/admin/otp/request` |
 | **Auth** | Anonymous |
 | **Tags** | Admin |
 
@@ -882,7 +966,7 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | OtpVerify |
 | **Purpose** | Verify admin OTP; issue access (1 hour) + refresh (24 hours) with `aud=admin`, `amr=otp` |
-| **Method / path** | `POST /admin/otp/verify` |
+| **Method / path** | `POST /auth/admin/otp/verify` |
 | **Auth** | Anonymous |
 | **Tags** | Admin |
 
@@ -909,7 +993,7 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | AdminPasswordLogin |
 | **Purpose** | Sign in a seeded admin with phone or email plus password. Issues `aud=admin`, `amr=pwd`. Member accounts return `user_not_found`. |
-| **Method / path** | `POST /admin/password` |
+| **Method / path** | `POST /auth/admin/password` |
 | **Auth** | Anonymous |
 | **Tags** | Admin |
 
@@ -936,9 +1020,9 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | AdminMe |
 | **Purpose** | Return the authenticated admin account. `isSuperAdmin` is the live database flag (not the JWT claim). `profile` is null. |
-| **Method / path** | `GET /admin/me` |
+| **Method / path** | `GET /admins/me` |
 | **Auth** | Bearer JWT + policy **`Admin`** |
-| **Tags** | Admin |
+| **Tags** | Admins |
 
 **Request**
 
@@ -968,9 +1052,9 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | CreateAdmin |
 | **Purpose** | Create another admin with a password (`isSuperAdmin` is always false). Caller must already be a super-admin (database flag, not the JWT claim). Set `AspNetUsers.IsSuperAdmin` in the database when you need a super-admin. There is still no public admin register. |
-| **Method / path** | `POST /admin/admins` |
+| **Method / path** | `POST /admins/Create` |
 | **Auth** | `Admin` + live `IsSuperAdmin` |
-| **Tags** | Admin |
+| **Tags** | Admins |
 
 **Request body:** `CreateAdminRequest`
 
@@ -995,9 +1079,9 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | ListAdmins |
 | **Purpose** | Page admin accounts, including inactive operators. Super-admin only. |
-| **Method / path** | `GET /admin/admins` |
+| **Method / path** | `GET /admins/GetAll` |
 | **Auth** | `Admin` + live `IsSuperAdmin` |
-| **Tags** | Admin |
+| **Tags** | Admins |
 
 **Query:** `PagedQuery` — `page` (default 1), `pageSize` (default 15, max 50)
 
@@ -1011,9 +1095,9 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | DeactivateAdmin |
 | **Purpose** | Deactivate another admin and revoke their refresh sessions. Super-admin only. |
-| **Method / path** | `POST /admin/admins/{id}/deactivate` |
+| **Method / path** | `POST /admins/{id}/deactivate` |
 | **Auth** | `Admin` + live `IsSuperAdmin` |
-| **Tags** | Admin |
+| **Tags** | Admins |
 
 **Response `data` model:** `AuthAccountDto`
 
@@ -1032,9 +1116,9 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | ActivateAdmin |
 | **Purpose** | Reactivate a deactivated admin. Super-admin only. |
-| **Method / path** | `POST /admin/admins/{id}/activate` |
+| **Method / path** | `POST /admins/{id}/activate` |
 | **Auth** | `Admin` + live `IsSuperAdmin` |
-| **Tags** | Admin |
+| **Tags** | Admins |
 
 **Response `data` model:** `AuthAccountDto`
 
@@ -1046,9 +1130,9 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 |--|--|
 | **Name** | ListMembers |
 | **Purpose** | Page members, newest first. Any admin. Soft-deleted members are omitted. Optional `search`, `isActive`, `isRestricted`. |
-| **Method / path** | `GET /admin/members` |
+| **Method / path** | `GET /members/GetAll` |
 | **Auth** | `Admin` |
-| **Tags** | Admin |
+| **Tags** | Members · Staff |
 
 **Query:** `page` (default 1), `pageSize` (default 15, max 50), optional `search` (email, phone, first/last name), optional `isActive`, optional `isRestricted`
 
@@ -1070,10 +1154,11 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities` picks them up wh
 | `lastName` | `string` or `null` | |
 | `gender` | `string` or `null` | |
 | `dateOfBirth` | `date` or `null` | |
-| `city` | `string` or `null` | |
+| `city` | `string` or `null` | Canonical catalog name |
 | `religion` | `string` or `null` | |
+| `cityId` | `guid` or `null` | Shared city-catalog id (same key as `Venue.cityId`); null only when the user has no profile row (like the other profile fields) |
 
-Open one member with `GET /admin/members/{id}`. Super-admins can restrict or unrestrict with `POST /admin/members/{id}/restrict` and `POST /admin/members/{id}/unrestrict` (independent of member self-deactivate).
+Open one member with `GET /members/{id}`. Super-admins can restrict or unrestrict with `POST /members/{id}/restrict` and `POST /members/{id}/unrestrict` (independent of member self-deactivate).
 
 ---
 
@@ -1083,9 +1168,9 @@ Open one member with `GET /admin/members/{id}`. Super-admins can restrict or unr
 |--|--|
 | **Name** | GetMember |
 | **Purpose** | One member: profile fields plus photo and introduction-video metadata. Any admin. Soft-deleted members are omitted. |
-| **Method / path** | `GET /admin/members/{id}` |
+| **Method / path** | `GET /members/{id}` |
 | **Auth** | `Admin` |
-| **Tags** | Admin |
+| **Tags** | Members · Staff |
 
 **Response `data` model:** `MemberAdminDetailDto`
 
@@ -1098,29 +1183,29 @@ Same fields as `MemberAdminDto`, plus:
 
 ---
 
-### Admin — GetMemberPhoto
+### Photos — GetMemberPhoto (staff)
 
 | | |
 |--|--|
 | **Name** | GetMemberPhoto |
 | **Purpose** | Image bytes for one photo on a member. Any admin. |
-| **Method / path** | `GET /admin/members/{id}/photos/{photoId}` |
+| **Method / path** | `GET /photos/{id}/{photoId}` |
 | **Auth** | `Admin` |
-| **Tags** | Admin |
+| **Tags** | Photos · Staff |
 
 **Response:** raw image bytes (`Content-Type` from the stored photo), not `ApiResponse<T>`.
 
 ---
 
-### Admin — GetMemberVideo
+### IntroductionVideo — GetMemberVideo (staff)
 
 | | |
 |--|--|
 | **Name** | GetMemberVideo |
 | **Purpose** | Introduction-video bytes for a member. Any admin. |
-| **Method / path** | `GET /admin/members/{id}/introduction-video/content` |
+| **Method / path** | `GET /introduction-video/{id}/content` |
 | **Auth** | `Admin` |
-| **Tags** | Admin |
+| **Tags** | Photos · Staff |
 
 **Response:** raw video bytes (`Content-Type` from the stored video), not `ApiResponse<T>`.
 
@@ -1132,9 +1217,9 @@ Same fields as `MemberAdminDto`, plus:
 |--|--|
 | **Name** | RestrictMember |
 | **Purpose** | Restrict a member (blocks sign-in, revokes refresh sessions). Super-admin only. Independent of member self-deactivate. Soft-deleted members are omitted (404). |
-| **Method / path** | `POST /admin/members/{id}/restrict` |
+| **Method / path** | `POST /members/{id}/restrict` |
 | **Auth** | `Admin` + super-admin |
-| **Tags** | Admin |
+| **Tags** | Members · Staff |
 
 **Response `data` model:** `MemberAdminDto`
 
@@ -1146,11 +1231,41 @@ Same fields as `MemberAdminDto`, plus:
 |--|--|
 | **Name** | UnrestrictMember |
 | **Purpose** | Remove a super-admin restriction from a member. Super-admin only. Soft-deleted members are omitted (404). |
-| **Method / path** | `POST /admin/members/{id}/unrestrict` |
+| **Method / path** | `POST /members/{id}/unrestrict` |
 | **Auth** | `Admin` + super-admin |
-| **Tags** | Admin |
+| **Tags** | Members · Staff |
 
 **Response `data` model:** `MemberAdminDto`
+
+---
+
+### Admissions — member and staff
+
+Admission review is one input to match eligibility, never the whole of it. The **eligibility verdict is computed on every read** (approved admission ∧ member account ∧ not deleted ∧ active ∧ unrestricted ∧ phone and email confirmed ∧ profile present ∧ age ≥ 18 ∧ every required consent accepted at its configured version ∧ no rejected face match) and is never stored as a flag, so a later deactivation, restriction or policy-version bump takes effect immediately. See `.ai/weekly-surprise-flow.md` and MATCHMAKING-RULES §4.
+
+| | |
+|--|--|
+| **States** | `Draft` → `Submitted` → `InReview` → `Approved` / `Rejected`. Member transitions: `Draft`/`Rejected` → `Submitted` (resubmission after rejection is allowed). Staff decisions: `StartReview` (Submitted→InReview), `Approve` / `Reject` (from Submitted or InReview), `Reopen` (Approved/Rejected→InReview). Any other edge is refused with `admission_transition_invalid` (409). |
+| **Consents** | `Terms`, `Privacy`, `CommunityGuidelines`; each acceptance is a versioned row (`(userId, policyKind, version)` unique). The required version per document is `Aynera:Admission:RequiredConsentVersions` (defaults `"1.0"`); raising it re-gates every member until they re-accept. |
+| **Concurrency** | Submit / Decide / AcceptConsent run in a workflow transaction under the `account:{userId}` lock, so two concurrent staff decisions produce exactly one transition. |
+| **Audit** | Submit, decisions and consent acceptance are audited. |
+
+**Models**
+
+`MemberAdmissionDto`: `userId`, `state`, `submittedAtUtc?`, `decidedAtUtc?`, `decidedByUserId?`, `decisionReason?`, `reviewNote?`, `createdAtUtc`, `updatedAtUtc?`, `consents: MemberConsentDto[]`, `eligibility: MemberEligibilityDto`.
+`MemberConsentDto`: `id`, `policyKind`, `version`, `acceptedAtUtc`.
+`MemberEligibilityDto`: `userId`, `isEligible`, `admissionState`, `unmetRequirements: string[]` — stable reason codes: `admission_not_approved`, `account_not_found`, `not_member`, `account_deleted`, `account_inactive`, `account_restricted`, `phone_unverified`, `email_unverified`, `profile_missing`, `underage`, `identity_rejected`, `consent_missing:{PolicyKind}`.
+`MemberAdmissionSummaryDto` (queue row, no verdict on purpose): `userId`, `state`, `submittedAtUtc?`, `decidedAtUtc?`, `decidedByUserId?`, `createdAtUtc`.
+
+| Name | Method / path | Auth | Request | Response `data` | Errors |
+|------|---------------|------|---------|-----------------|--------|
+| GetMyAdmission | `GET /admissions/me` | `Member` | — | `MemberAdmissionDto` (a Draft row is returned even before first submit) | — |
+| SubmitMyAdmission | `POST /admissions/me/submit` | `Member` | — | `MemberAdmissionDto` | 400 `admission_account_unavailable` (deleted/inactive/restricted), `admission_profile_required`, `admission_underage`; 409 `admission_already_submitted` (Submitted/InReview), `admission_already_approved` |
+| AcceptConsent | `POST /admissions/me/consents` | `Member` | `{ policyKind, version }` | `MemberAdmissionDto` | 400 `validation_failed` (unknown kind / empty version). Re-accepting the same version is idempotent |
+| ListAdmissions | `GET /admissions/GetAll?state=&page=&pageSize=` | `Admin` | query `state?` (Draft/Submitted/InReview/Approved/Rejected), `page` (default 1), `pageSize` (default 25, max 100) | `PagedResult<MemberAdmissionSummaryDto>`, oldest submission first | 400 `validation_failed` (unknown state) |
+| GetMemberAdmission | `GET /admissions/{userId}` | `Admin` | — | `MemberAdmissionDto` | 404 `admission_member_not_found` (missing or non-member) |
+| DecideAdmission | `POST /admissions/{userId}/decision` | `Admin` | `{ decision, reason?, reviewNote? }` — `decision` ∈ StartReview/Approve/Reject/Reopen; `reason` required for Reject | `MemberAdmissionDto` | 400 `validation_failed`; 404 `admission_member_not_found`; 409 `admission_transition_invalid` |
+| GetMemberEligibility | `GET /admissions/{userId}/eligibility` | `Admin` | — | `MemberEligibilityDto` | 404 `admission_member_not_found` |
 
 ---
 
@@ -1160,7 +1275,7 @@ Same fields as `MemberAdminDto`, plus:
 |--|--|
 | **Name** | ListAuditEvents |
 | **Purpose** | Page audit events, newest first. Any admin. With `memberId` or `subjectId`, returns all actions for that subject unless `action` is set. Without a subject, defaults to member restrict/unrestrict. |
-| **Method / path** | `GET /admin/audit/events` |
+| **Method / path** | `GET /audit/events/GetAll` |
 | **Auth** | `Admin` |
 | **Tags** | Admin |
 
@@ -1174,7 +1289,11 @@ Same fields as `MemberAdminDto`, plus:
 
 | Name | Method | Path | Auth | Request body | Response `data` |
 |------|--------|------|------|--------------|-----------------|
-| Register | `POST` | `/users/register` | Anonymous | `CreateMemberRequest` | `AuthAccountDto` |
+| Register | `POST` | `/members/register` | Anonymous | `CreateMemberRequest` | `AuthAccountDto` |
+| StartPhoneRegistration | `POST` | `/members/register/phone` | Anonymous | `{ phone }` | `RequestMemberOtpResponse` |
+| VerifyPhoneRegistration | `POST` | `/members/register/phone/verify` | Anonymous | `{ phone, code }` | `TokenResponse` (Draft account created) |
+| StartEmailVerification | `POST` | `/members/me/email` | `Member` | `{ email }` | `RequestMemberOtpResponse` |
+| VerifyEmailCode | `POST` | `/members/me/email/verify` | `Member` | `{ email, code }` | `AuthAccountDto` |
 | VerifyEmail | `POST` | `/auth/verifyemail` | Anonymous | `ConfirmEmailRequest` | `AuthAccountDto` |
 | Login | `POST` | `/auth/login` | Anonymous | `RequestMemberOtpRequest` | `RequestMemberOtpResponse` |
 | VerifySms | `POST` | `/auth/verifysms` | Anonymous | `VerifyMemberOtpRequest` | `TokenResponse` |
@@ -1183,52 +1302,67 @@ Same fields as `MemberAdminDto`, plus:
 | ResetPassword | `POST` | `/auth/password/reset` | Anonymous | `ResetMemberPasswordRequest` | `TokenResponse` |
 | Refresh | `POST` | `/auth/refresh` | Anonymous | `RefreshTokenRequest` | `TokenResponse` |
 | Logout | `POST` | `/auth/logout` | Anonymous | `LogoutRequest` | `null` |
-| AdminOtpRequest | `POST` | `/admin/otp/request` | Anonymous | `RequestAdminOtpRequest` | `RequestMemberOtpResponse` |
-| AdminOtpVerify | `POST` | `/admin/otp/verify` | Anonymous | `VerifyAdminOtpRequest` | `TokenResponse` |
-| AdminPasswordLogin | `POST` | `/admin/password` | Anonymous | `AdminPasswordLoginRequest` | `TokenResponse` |
-| AdminMe | `GET` | `/admin/me` | `Admin` | — | `AuthAccountDto` |
-| CreateAdmin | `POST` | `/admin/admins` | `Admin` + super-admin | `CreateAdminRequest` | `AuthAccountDto` |
-| ListAdmins | `GET` | `/admin/admins` | `Admin` + super-admin | `page`, `pageSize` | `PagedResult<AuthAccountDto>` |
-| DeactivateAdmin | `POST` | `/admin/admins/{id}/deactivate` | `Admin` + super-admin | — | `AuthAccountDto` |
-| ActivateAdmin | `POST` | `/admin/admins/{id}/activate` | `Admin` + super-admin | — | `AuthAccountDto` |
-| ListMembers | `GET` | `/admin/members` | `Admin` | `page`, `pageSize`, `search?`, `isActive?`, `isRestricted?` | `PagedResult<MemberAdminDto>` |
-| GetMember | `GET` | `/admin/members/{id}` | `Admin` | — | `MemberAdminDetailDto` |
-| GetMemberPhoto | `GET` | `/admin/members/{id}/photos/{photoId}` | `Admin` | — | image bytes |
-| GetMemberVideo | `GET` | `/admin/members/{id}/introduction-video/content` | `Admin` | — | video bytes |
-| RestrictMember | `POST` | `/admin/members/{id}/restrict` | `Admin` + super-admin | — | `MemberAdminDto` |
-| UnrestrictMember | `POST` | `/admin/members/{id}/unrestrict` | `Admin` + super-admin | — | `MemberAdminDto` |
-| ListEarlyAccessSignups | `GET` | `/early-access/signups` | `Admin` | `page`, `pageSize` | `PagedResult<EarlyAccessSignupAdminDto>` |
-| ListSuggestions | `GET` | `/admin/suggestions` | `Admin` | `page`, `pageSize` | `PagedResult<SuggestionAdminDto>` |
-| ListFeedback | `GET` | `/admin/feedback` | `Admin` | `page`, `pageSize` | `PagedResult<FeedbackSubmissionAdminDto>` |
-| ListAuditEvents | `GET` | `/admin/audit/events` | `Admin` | `page`, `pageSize`, `action?`, `memberId?`, `subjectType?`, `subjectId?` | `PagedResult<AuditEventAdminDto>` |
-| Me | `GET` | `/users/me` | `Member` | — | `AuthAccountDto` |
-| SetPassword | `POST` | `/users/me/password` | `Member` | `SetMemberPasswordRequest` | `null` |
-| UploadPhotos | `POST` | `/users/me/photos` | `Member` | multipart `photos` | `MemberPhotoDto[]` |
-| ListPhotos | `GET` | `/users/me/photos` | `Member` | — | `MemberPhotoDto[]` |
-| GetPhoto | `GET` | `/users/me/photos/{id}` | `Member` | — | image bytes |
-| DeletePhoto | `DELETE` | `/users/me/photos/{id}` | `Member` | — | `null` |
-| UploadIntroductionVideo | `POST` | `/users/me/introduction-video` | `Member` | multipart `video` | `IntroductionVideoDto` |
-| GetIntroductionVideo | `GET` | `/users/me/introduction-video` | `Member` | — | `IntroductionVideoDto` |
-| GetIntroductionVideoContent | `GET` | `/users/me/introduction-video/content` | `Member` | — | video bytes |
-| DeleteIntroductionVideo | `DELETE` | `/users/me/introduction-video` | `Member` | — | `null` |
+| AdminOtpRequest | `POST` | `/auth/admin/otp/request` | Anonymous | `RequestAdminOtpRequest` | `RequestMemberOtpResponse` |
+| AdminOtpVerify | `POST` | `/auth/admin/otp/verify` | Anonymous | `VerifyAdminOtpRequest` | `TokenResponse` |
+| AdminPasswordLogin | `POST` | `/auth/admin/password` | Anonymous | `AdminPasswordLoginRequest` | `TokenResponse` |
+| AdminMe | `GET` | `/admins/me` | `Admin` | — | `AuthAccountDto` |
+| CreateAdmin | `POST` | `/admins/Create` | `Admin` + super-admin | `CreateAdminRequest` | `AuthAccountDto` |
+| ListAdmins | `GET` | `/admins/GetAll` | `Admin` + super-admin | `page`, `pageSize` | `PagedResult<AuthAccountDto>` |
+| DeactivateAdmin | `POST` | `/admins/{id}/deactivate` | `Admin` + super-admin | — | `AuthAccountDto` |
+| ActivateAdmin | `POST` | `/admins/{id}/activate` | `Admin` + super-admin | — | `AuthAccountDto` |
+| ListMembers | `GET` | `/members/GetAll` | `Admin` | `page`, `pageSize`, `search?`, `isActive?`, `isRestricted?` | `PagedResult<MemberAdminDto>` |
+| GetMember | `GET` | `/members/{id}` | `Admin` | — | `MemberAdminDetailDto` |
+| GetMemberPhoto | `GET` | `/photos/{id}/{photoId}` | `Admin` | — | image bytes |
+| GetMemberVideo | `GET` | `/introduction-video/{id}/content` | `Admin` | — | video bytes |
+| RestrictMember | `POST` | `/members/{id}/restrict` | `Admin` + super-admin | — | `MemberAdminDto` |
+| UnrestrictMember | `POST` | `/members/{id}/unrestrict` | `Admin` + super-admin | — | `MemberAdminDto` |
+| ListEarlyAccessSignups | `GET` | `/early-access/signups/GetAll` | `Admin` | `page`, `pageSize` | `PagedResult<EarlyAccessSignupAdminDto>` |
+| ListSuggestions | `GET` | `/suggestions/GetAll` | `Admin` | `page`, `pageSize` | `PagedResult<SuggestionAdminDto>` |
+| ListFeedback | `GET` | `/feedback/GetAll` | `Admin` | `page`, `pageSize` | `PagedResult<FeedbackSubmissionAdminDto>` |
+| ListAuditEvents | `GET` | `/audit/events/GetAll` | `Admin` | `page`, `pageSize`, `action?`, `memberId?`, `subjectType?`, `subjectId?` | `PagedResult<AuditEventAdminDto>` |
+| ListAdmissions | `GET` | `/admissions/GetAll` | `Admin` | `state?`, `page`, `pageSize` | `PagedResult<MemberAdmissionSummaryDto>` |
+| GetMemberAdmission | `GET` | `/admissions/{userId}` | `Admin` | — | `MemberAdmissionDto` |
+| DecideAdmission | `POST` | `/admissions/{userId}/decision` | `Admin` | `AdmissionDecisionRequest` | `MemberAdmissionDto` |
+| GetMemberEligibility | `GET` | `/admissions/{userId}/eligibility` | `Admin` | — | `MemberEligibilityDto` |
+| GetMyAdmission | `GET` | `/admissions/me` | `Member` | — | `MemberAdmissionDto` |
+| SubmitMyAdmission | `POST` | `/admissions/me/submit` | `Member` | — | `MemberAdmissionDto` |
+| AcceptConsent | `POST` | `/admissions/me/consents` | `Member` | `AcceptConsentRequest` | `MemberAdmissionDto` |
+| Me | `GET` | `/members/me` | `Member` | — | `AuthAccountDto` |
+| SetPassword | `POST` | `/members/me/password` | `Member` | `SetMemberPasswordRequest` | `null` |
+| UploadPhotos | `POST` | `/photos/Upload` | `Member` | multipart `photos` | `MemberPhotoDto[]` |
+| ListPhotos | `GET` | `/photos/GetAll` | `Member` | — | `MemberPhotoDto[]` |
+| GetPhoto | `GET` | `/photos/{photoId}` | `Member` | — | image bytes |
+| DeletePhoto | `DELETE` | `/photos/{photoId}` | `Member` | — | `null` |
+| UploadIntroductionVideo | `POST` | `/introduction-video/Upload` | `Member` | multipart `video` | `IntroductionVideoDto` |
+| GetIntroductionVideo | `GET` | `/introduction-video/me` | `Member` | — | `IntroductionVideoDto` |
+| GetIntroductionVideoContent | `GET` | `/introduction-video/me/content` | `Member` | — | video bytes |
+| DeleteIntroductionVideo | `DELETE` | `/introduction-video/me` | `Member` | — | `null` |
+| ListVenues | `GET` | `/venues/GetAll` | `Admin` | — | `VenueDto[]` |
+| CreateVenue | `POST` | `/venues/Create` | `Admin` | `CreateVenueRequest` | `VenueDto` |
+| UpdateVenue | `PATCH` | `/venues/{id}` | `Admin` | `UpdateVenueRequest` | `VenueDto` |
+| DeleteVenue | `DELETE` | `/venues/{id}` | `Admin` | — | `null` |
+| SendVenueHeadsUp | `POST` | `/venues/{id}/notifications/Create` | `Admin` | `SendVenueHeadsUpRequest` (`visitOn`, `partySize`, `note?`) | `VenueNotificationDto[]` (one Email + one Sms row) |
+| ListVenueNotifications | `GET` | `/venues/{id}/notifications/GetAll` | `Admin` | — | `VenueNotificationDto[]` |
 | JoinEarlyAccess | `POST` | `/early-access/register` | Anonymous | `JoinEarlyAccessRequest` | `EarlyAccessSignupDto` |
-| ListEarlyAccessCities | `GET` | `/early-access/cities` | Anonymous (Admin sees all) | — | `EarlyAccessCityDto[]` |
-| CreateEarlyAccessCity | `POST` | `/early-access/cities` | `Admin` | `CreateEarlyAccessCityRequest` | `EarlyAccessCityDto` |
+| ListEarlyAccessCities | `GET` | `/early-access/cities/GetAll` | Anonymous (Admin sees all) | — | `EarlyAccessCityDto[]` |
+| CreateEarlyAccessCity | `POST` | `/early-access/cities/Create` | `Admin` | `CreateEarlyAccessCityRequest` | `EarlyAccessCityDto` |
 | UpdateEarlyAccessCity | `PATCH` | `/early-access/cities/{id}` | `Admin` | `UpdateEarlyAccessCityRequest` | `EarlyAccessCityDto` |
 | DeleteEarlyAccessCity | `DELETE` | `/early-access/cities/{id}` | `Admin` | — | `null` |
-| SubmitSuggestion | `POST` | `/public/suggestions` | Anonymous | `SubmitSuggestionRequest` | `SuggestionDto` |
-| SubmitFeedback | `POST` | `/public/feedback` | Anonymous | `SubmitFeedbackRequest` | `FeedbackSubmissionDto` |
-| Deactivate | `POST` | `/users/deactivate` | `Member` | — | `null` |
-| Reactivate | `POST` | `/users/reactivate` | `Member` | — | `null` |
-| DeleteAccount | `DELETE` | `/users/account` | `Member` | — | `null` |
+| SubmitSuggestion | `POST` | `/suggestions/Create` | Anonymous | `SubmitSuggestionRequest` | `SuggestionDto` |
+| SubmitFeedback | `POST` | `/feedback/Create` | Anonymous | `SubmitFeedbackRequest` | `FeedbackSubmissionDto` |
+| Deactivate | `POST` | `/members/me/deactivate` | `Member` | — | `null` |
+| Reactivate | `POST` | `/members/me/reactivate` | `MemberReactivation` | — | `null` |
+| RequestReactivation | `POST` | `/members/reactivate/request` | Anonymous | `RequestMemberReactivationRequest` | `RequestMemberOtpResponse` |
+| RecoverMember | `POST` | `/members/reactivate/recover` | Anonymous | `RecoverMemberRequest` | `null` |
+| DeleteAccount | `DELETE` | `/members/me` | `MemberAccountDeletion` | — | `null` |
 
 ---
 
 ## Client flow (member app)
 
 ```text
-0. POST /users/register                { phone, email, firstName, lastName, gender, dateOfBirth, city, religion?, password? }
-   — emails verification link (dev stub does not deliver mail); emailConfirmed=false until step 0b
+0. POST /members/register                { phone, email, firstName, lastName, gender, dateOfBirth, city, religion?, password? }
+   — queues verification email after account/profile commit (dev stub does not deliver mail); emailConfirmed=false until step 0b
    — optional password enables PasswordLogin immediately
 0b. Open email link → client reads ?userId=&token=
     POST /auth/verifyemail             { userId, token }
@@ -1238,45 +1372,48 @@ Same fields as `MemberAdminDto`, plus:
    — audience defaults to member; confirms that phone or email; does not create the account
    — access JWT 1 hour, refresh 90 days, aud=member, amr=otp
 1b. Or password login: POST /auth/password { identifier, password }  → amr=pwd
-1c. After OTP login, optional: POST /users/me/password { password, currentPassword? }
+1c. After OTP login, optional: POST /members/me/password { password, currentPassword? }
 1d. Forgot: POST /auth/password/forgot { identifier } then POST /auth/password/reset { identifier, code, newPassword }
+1e. After deactivation, if the access token is still valid: POST /members/me/reactivate
+    If it has expired: POST /members/reactivate/request { identifier } then POST /members/reactivate/recover { identifier, code }
+    Then sign in again. Login remains blocked until recovery succeeds. Revoked refresh tokens are not restored.
 4. Store accessToken + refreshToken securely
-5. GET  /users/me                      Authorization: Bearer accessToken
-5b. POST /users/me/photos              multipart photos[] (first = reference selfie)
+5. GET  /members/me                      Authorization: Bearer accessToken
+5b. POST /photos/Upload                   multipart photos[] (first = reference selfie)
 6. Before access expiry: POST /auth/refresh { refreshToken }
 7. Sign out: POST /auth/logout         { refreshToken }
 ```
 
 ## Client flow (admin site)
 
-Seed the first admin with `ELARIS_ADMIN_EMAIL` + `ELARIS_ADMIN_PASSWORD` (optional `ELARIS_ADMIN_PHONE`). That first seeded account is the super-admin. Admins created later via `POST /admin/admins` have `IsSuperAdmin` false. There is no public admin register and no API to grant super-admin.
+Seed the first admin with `AYNERA_ADMIN_EMAIL` + `AYNERA_ADMIN_PASSWORD` (optional `AYNERA_ADMIN_PHONE`). That first seeded account is the super-admin. Admins created later via `POST /admins/Create` have `IsSuperAdmin` false. There is no public admin register and no API to grant super-admin.
 
 ```text
-POST /admin/password               { identifier, password }
+POST /auth/admin/password               { identifier, password }
   or
-POST /admin/otp/request            { identifier }
-POST /admin/otp/verify             { identifier, code }
+POST /auth/admin/otp/request            { identifier }
+POST /auth/admin/otp/verify             { identifier, code }
 — access JWT 1 hour, refresh 24 hours, aud=admin (optional claim is_super_admin; authorization still uses the database)
 Store tokens; call Admin-policy routes with Authorization: Bearer …
-GET  /admin/me
-GET  /admin/admins                 ?page=1&pageSize=15   // super-admin
-POST /admin/admins                 { email, password, phone? }
-POST /admin/admins/{id}/deactivate
-POST /admin/admins/{id}/activate
-GET  /early-access/signups         ?page=1&pageSize=15
-GET  /admin/suggestions            ?page=1&pageSize=15
-GET  /admin/feedback               ?page=1&pageSize=15
+GET  /admins/me
+GET  /admins/GetAll          ?page=1&pageSize=15   // super-admin
+POST /admins/Create          { email, password, phone? }
+POST /admins/{id}/deactivate
+POST /admins/{id}/activate
+GET  /early-access/signups/GetAll  ?page=1&pageSize=15
+GET  /suggestions/GetAll     ?page=1&pageSize=15
+GET  /feedback/GetAll        ?page=1&pageSize=15
 POST /auth/refresh                 { refreshToken }
 POST /auth/logout                  { refreshToken }
 ```
 
-Config: `Elaris:Email:VerifyLinkBaseUrl` (or `ELARIS_EMAIL_VERIFY_LINK_BASE_URL`) is the page or app deep link that receives `userId` + `token` in the query string and POSTs them to `/auth/verifyemail`.
+Config: `Aynera:Email:VerifyLinkBaseUrl` (or `AYNERA_EMAIL_VERIFY_LINK_BASE_URL`) is the page or app deep link that receives `userId` + `token` in the query string and POSTs them to `/auth/verifyemail`.
 
-Photos are stored as compressed JPEG `BYTEA` in Postgres (`Elaris:Photos`). Face matching uses `IFaceMatchService` (stub in dev; `StubFaceMatchStatus` defaults to `Matched`).
+Photos are stored as compressed JPEG `BYTEA` in Postgres (`Aynera:Photos`). Face matching uses `IFaceMatchService` (stub in dev; `StubFaceMatchStatus` defaults to `Matched`).
 
-Media authenticity (`Elaris:MediaAuthenticity`) runs on **original** photo/video bytes before processing. The default `HeuristicMediaAuthenticityService` rejects known AI-tool markers in EXIF/XMP/IPTC (and sampled video metadata). Undetermined media is allowed when `AllowWhenUndetermined` is true. Set `StubForceAiDetected` only in tests. Swap the service later for a dedicated AI-detection provider without changing controllers.
+Media authenticity (`Aynera:MediaAuthenticity`) runs on **original** photo/video bytes before processing. The default `HeuristicMediaAuthenticityService` rejects known AI-tool markers in EXIF/XMP/IPTC (and sampled video metadata). Undetermined media is allowed when `AllowWhenUndetermined` is true. Set `StubForceAiDetected` only in tests. Swap the service later for a dedicated AI-detection provider without changing controllers.
 
-Early access cities live in Postgres (`EarlyAccessCities`) with soft-delete and `isActive`. `GET /early-access/cities` returns open cities for anonymous callers (full catalog for Admin). Admins manage Wave 2+ via `POST`/`PATCH`/`DELETE` on `/early-access/cities`. Marketing `/apply` registers with `POST /early-access/register`. Admins list waitlist, suggestions, and grievances at `GET /early-access/signups`, `GET /admin/suggestions`, and `GET /admin/feedback` (`page` / `pageSize`).
+Early access cities live in Postgres (`EarlyAccessCities`) with soft-delete and `isActive`. `GET /early-access/cities/GetAll` returns open cities for anonymous callers (full catalog for Admin). Admins manage Wave 2+ via `POST /early-access/cities/Create` and `PATCH`/`DELETE /early-access/cities/{id}`. The same catalog is the member city key: `POST /members/register` resolves `city` against it and stores `cityId`, and `Venue.cityId` references it, so members and venues share one city id. Marketing `/apply` registers with `POST /early-access/register`. Admins list waitlist, suggestions, and grievances at `GET /early-access/signups/GetAll`, `GET /suggestions/GetAll`, and `GET /feedback/GetAll` (`page` / `pageSize`).
 
 ---
 
@@ -1291,4 +1428,4 @@ When adding an endpoint, document at least:
 5. New or changed `errorCode` values
 6. Row in the Endpoint index table
 
-Source of truth for types: `Elaris.Domain` DTOs and `Elaris.Api` controllers. Swagger is a convenience mirror in Development.
+Source of truth for types: `Aynera.Domain` DTOs and `Aynera.Api` controllers. Swagger is a convenience mirror in Development.

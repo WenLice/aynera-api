@@ -1,0 +1,164 @@
+@Aynera.Api_HostAddress = http://localhost:5057
+
+### Health
+GET {{Aynera.Api_HostAddress}}/health
+Accept: application/json
+
+### Register
+POST {{Aynera.Api_HostAddress}}/members/register
+Content-Type: application/json
+
+{
+  "phone": "9876543210",
+  "email": "member@example.com",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "gender": "Female",
+  "dateOfBirth": "1990-05-15",
+  "city": "Mumbai",
+  "religion": "Hindu"
+}
+
+### VerifyEmail
+POST {{Aynera.Api_HostAddress}}/auth/verifyemail
+Content-Type: application/json
+
+{
+  "userId": "{{user_id}}",
+  "token": "{{email_token}}"
+}
+
+### Login (send SMS OTP)
+POST {{Aynera.Api_HostAddress}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "9876543210"
+}
+
+### VerifySms (complete login)
+POST {{Aynera.Api_HostAddress}}/auth/verifysms
+Content-Type: application/json
+
+{
+  "phone": "9876543210",
+  "code": "123456",
+  "audience": "member-web"
+}
+
+### Refresh
+POST {{Aynera.Api_HostAddress}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+### Logout
+POST {{Aynera.Api_HostAddress}}/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+### Me
+GET {{Aynera.Api_HostAddress}}/members/me
+Authorization: Bearer {{access_token}}
+
+### UploadPhotos
+POST {{Aynera.Api_HostAddress}}/photos/Upload
+Authorization: Bearer {{access_token}}
+Content-Type: multipart/form-data; boundary=----aynera
+
+------aynera
+Content-Disposition: form-data; name="photos"; filename="face.jpg"
+Content-Type: image/jpeg
+
+< ./face.jpg
+------aynera--
+
+### ListPhotos
+GET {{Aynera.Api_HostAddress}}/photos/GetAll
+Authorization: Bearer {{access_token}}
+
+### GetPhoto
+GET {{Aynera.Api_HostAddress}}/photos/{{photo_id}}
+Authorization: Bearer {{access_token}}
+
+### DeletePhoto
+DELETE {{Aynera.Api_HostAddress}}/photos/{{photo_id}}
+Authorization: Bearer {{access_token}}
+
+### UploadIntroductionVideo
+POST {{Aynera.Api_HostAddress}}/introduction-video/Upload
+Authorization: Bearer {{access_token}}
+Content-Type: multipart/form-data; boundary=----aynera
+
+------aynera
+Content-Disposition: form-data; name="video"; filename="intro.mp4"
+Content-Type: video/mp4
+
+< ./intro.mp4
+------aynera--
+
+### GetIntroductionVideo
+GET {{Aynera.Api_HostAddress}}/introduction-video/me
+Authorization: Bearer {{access_token}}
+
+### GetIntroductionVideoContent
+GET {{Aynera.Api_HostAddress}}/introduction-video/me/content
+Authorization: Bearer {{access_token}}
+
+### DeleteIntroductionVideo
+DELETE {{Aynera.Api_HostAddress}}/introduction-video/me
+Authorization: Bearer {{access_token}}
+
+### Deactivate
+POST {{Aynera.Api_HostAddress}}/members/me/deactivate
+Authorization: Bearer {{access_token}}
+
+### Reactivate
+POST {{Aynera.Api_HostAddress}}/members/me/reactivate
+Authorization: Bearer {{access_token}}
+
+### DeleteAccount
+DELETE {{Aynera.Api_HostAddress}}/members/me
+Authorization: Bearer {{access_token}}
+
+### JoinEarlyAccess
+POST {{Aynera.Api_HostAddress}}/early-access/register
+Content-Type: application/json
+
+{
+  "fullName": "Ada Lovelace",
+  "email": "ada@example.com",
+  "city": "Mumbai",
+  "interest": "Aynera",
+  "isAdult": true,
+  "marketingConsent": true
+}
+
+### ListEarlyAccessCities
+GET {{Aynera.Api_HostAddress}}/early-access/cities/GetAll
+
+### SubmitSuggestion
+POST {{Aynera.Api_HostAddress}}/suggestions/Create
+Content-Type: application/json
+
+{
+  "fullName": "Ada Lovelace",
+  "email": "ada@example.com",
+  "message": "More partner cafés would help first meets."
+}
+
+### SubmitFeedback
+POST {{Aynera.Api_HostAddress}}/feedback/Create
+Content-Type: application/json
+
+{
+  "fullName": "Ada Lovelace",
+  "email": "ada@example.com",
+  "phone": "9876543210",
+  "message": "I need help with a pilot support request."
+}

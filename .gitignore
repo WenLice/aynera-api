@@ -7,3 +7,4 @@ appsettings.*.local.json
 .env
 **/node_modules/
 TestResults/
+.runtime/

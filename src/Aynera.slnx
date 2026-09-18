@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="Aynera.Api/Aynera.Api.csproj" />
+    <Project Path="Aynera.Application/Aynera.Application.csproj" />
+    <Project Path="Aynera.Domain/Aynera.Domain.csproj" />
+    <Project Path="Aynera.Infrastructure/Aynera.Infrastructure.csproj" />
+    <Project Path="Aynera.Notifications/Aynera.Notifications.csproj" />
+    <Project Path="Aynera.Persistence/Aynera.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../tests/Aynera.Api.IntegrationTests/Aynera.Api.IntegrationTests.csproj" />
+    <Project Path="../tests/Aynera.Application.Tests/Aynera.Application.Tests.csproj" />
+    <Project Path="../tests/Aynera.Domain.Tests/Aynera.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

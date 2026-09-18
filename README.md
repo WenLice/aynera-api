@@ -1,21 +1,21 @@
-# elaris-api
+# aynera-api
 
-ASP.NET Core modular monolith for **ElAris**.
+ASP.NET Core modular monolith for **Aynera**.
 
-- **Repo:** https://github.com/WenLice/elaris-api
+- **Repo:** https://github.com/WenLice/aynera-api
 - **Stack:** .NET 10, PostgreSQL, Redis
-- **Host:** intended as `api.elaris.com`
+- **Host:** intended as `api.aynera.com`
 
 ## Layout
 
 ```text
-elaris-api/
+aynera-api/
 ├── src/
-│   ├── Elaris.Api/              # HTTP host
-│   ├── Elaris.Application/      # Use cases / features
-│   ├── Elaris.Domain/           # Entities and rules
-│   ├── Elaris.Infrastructure/   # EF Core, Redis, integrations
-│   ├── Elaris.slnx              # Solution file
+│   ├── Aynera.Api/              # HTTP host
+│   ├── Aynera.Application/      # Use cases / features
+│   ├── Aynera.Domain/           # Entities and rules
+│   ├── Aynera.Infrastructure/   # EF Core, Redis, integrations
+│   ├── Aynera.slnx              # Solution file
 │   ├── Dockerfile
 │   └── docker-compose.yml
 ├── tests/
@@ -30,7 +30,7 @@ elaris-api/
 | `tests/` | Automated tests |
 | `docs/` | Developer guide, API reference, setup, structure |
 
-Start with [docs/developer-guide.md](./docs/developer-guide.md) and [docs/api-reference.md](./docs/api-reference.md). Product-wide specs live in `elaris-admin/docs`.
+Start with [docs/developer-guide.md](./docs/developer-guide.md) and [docs/api-reference.md](./docs/api-reference.md). Product-wide specs live in `aynera-admin/docs`.
 
 ## Requirements
 
@@ -44,7 +44,7 @@ Start with [docs/developer-guide.md](./docs/developer-guide.md) and [docs/api-re
 docker compose -f src/docker-compose.yml up -d postgres redis
 
 # API
-dotnet run --project src/Elaris.Api
+dotnet run --project src/Aynera.Api
 ```
 
 Or run everything via Compose (from `src/`):
@@ -62,10 +62,10 @@ See [docs/setup.md](./docs/setup.md).
 
 | Repo | Role |
 |------|------|
-| `elaris-web` | Marketing website |
-| `elaris-app` | Member mobile app |
-| `elaris-admin` | Admin panel + product documentation |
+| `aynera-web` | Marketing website |
+| `aynera-app` | Member mobile app |
+| `aynera-admin` | Admin panel + product documentation |
 
 ## License
 
-Proprietary — WenLice / ElAris. All rights reserved.
+Proprietary — WenLice / Aynera. All rights reserved.

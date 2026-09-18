@@ -1,15 +1,15 @@
 # Solution structure
 
 ```text
-elaris-api/
+aynera-api/
 ├── src/
-│   ├── Elaris.Domain/           # Requests/Responses/Records, enums, statics, FluentValidation
-│   ├── Elaris.Application/      # services + repository interfaces + feature models (+ IEmail/ISms)
-│   ├── Elaris.Persistence/      # entities, DbContext, EF migrations
-│   ├── Elaris.Infrastructure/   # repository impl, Redis, JWT, seeds
-│   ├── Elaris.Notifications/    # email/SMS adapters (Console, SMTP, Textbelt)
-│   ├── Elaris.Api/              # controllers, middleware, composition root
-│   ├── Elaris.slnx
+│   ├── Aynera.Domain/           # Requests/Responses/Records, enums, statics, FluentValidation
+│   ├── Aynera.Application/      # services + repository interfaces + feature models (+ IEmail/ISms)
+│   ├── Aynera.Persistence/      # entities, DbContext, EF migrations
+│   ├── Aynera.Infrastructure/   # repository impl, Redis, JWT, seeds
+│   ├── Aynera.Notifications/    # email/SMS adapters (Console, SMTP, Textbelt)
+│   ├── Aynera.Api/              # controllers, middleware, composition root
+│   ├── Aynera.slnx
 │   ├── Dockerfile
 │   └── docker-compose.yml
 ├── tests/
@@ -29,7 +29,7 @@ Application + Infrastructure + Notifications + Persistence + Domain  ←  Api
 
 - **Domain:** per-feature `Requests/` / `Responses/` / `Records/` (one type per file), enums, statics, request FluentValidation  
 - **Application:** feature services (`Services/Interfaces` + `Services/Implementations`), repository interfaces, config models  
-- **Persistence:** entities, `ElarisDbContext`, migrations  
+- **Persistence:** entities, `AyneraDbContext`, migrations  
 - **Controller → Service → Repository → Database**
 
 Auth feature sketch:
@@ -45,13 +45,13 @@ Application/Features/Auth/
 Build:
 
 ```bash
-dotnet build src/Elaris.slnx
+dotnet build src/Aynera.slnx
 ```
 
 New migration:
 
 ```bash
-dotnet ef migrations add <Name> --project src/Elaris.Persistence --startup-project src/Elaris.Api --output-dir Migrations
+dotnet ef migrations add <Name> --project src/Aynera.Persistence --startup-project src/Aynera.Api --output-dir Migrations
 ```
 
 See [developer-guide.md](./developer-guide.md) and [api-reference.md](./api-reference.md).

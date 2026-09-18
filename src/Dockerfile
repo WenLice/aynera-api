@@ -1,20 +1,20 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY Elaris.Api/Elaris.Api.csproj Elaris.Api/
-COPY Elaris.Application/Elaris.Application.csproj Elaris.Application/
-COPY Elaris.Domain/Elaris.Domain.csproj Elaris.Domain/
-COPY Elaris.Infrastructure/Elaris.Infrastructure.csproj Elaris.Infrastructure/
-COPY Elaris.Notifications/Elaris.Notifications.csproj Elaris.Notifications/
-COPY Elaris.Persistence/Elaris.Persistence.csproj Elaris.Persistence/
-RUN dotnet restore Elaris.Api/Elaris.Api.csproj
+COPY Aynera.Api/Aynera.Api.csproj Aynera.Api/
+COPY Aynera.Application/Aynera.Application.csproj Aynera.Application/
+COPY Aynera.Domain/Aynera.Domain.csproj Aynera.Domain/
+COPY Aynera.Infrastructure/Aynera.Infrastructure.csproj Aynera.Infrastructure/
+COPY Aynera.Notifications/Aynera.Notifications.csproj Aynera.Notifications/
+COPY Aynera.Persistence/Aynera.Persistence.csproj Aynera.Persistence/
+RUN dotnet restore Aynera.Api/Aynera.Api.csproj
 
 COPY . .
-RUN dotnet publish Elaris.Api/Elaris.Api.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish Aynera.Api/Aynera.Api.csproj -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "Elaris.Api.dll"]
+ENTRYPOINT ["dotnet", "Aynera.Api.dll"]
