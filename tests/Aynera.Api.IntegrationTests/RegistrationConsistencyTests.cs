@@ -29,7 +29,7 @@ public sealed class RegistrationConsistencyTests(AuthApiFactory factory)
 {
     private static CreateMemberRequest Request() => new(
         "9" + Random.Shared.NextInt64(100_000_000, 999_999_999), "Ada Lovelace", Gender.Female,
-        new DateOnly(1990, 5, 15), "Mumbai", $"registration-{Guid.NewGuid():N}@example.com", Password: "secret12");
+        new DateOnly(1990, 5, 15), "Bangalore", $"registration-{Guid.NewGuid():N}@example.com", Password: "secret12");
 
     [Theory]
     [InlineData("identity")]

@@ -245,15 +245,15 @@ public sealed class AdmissionEndpointsTests(AuthApiFactory factory)
         if (withProfile)
         {
             var db = sp.GetRequiredService<AyneraDbContext>();
-            var delhi = await db.EarlyAccessCities.SingleAsync(c => c.Name == "Delhi");
+            var city = await db.EarlyAccessCities.SingleAsync(c => c.Name == "Bangalore");
             db.MemberProfiles.Add(new MemberProfile
             {
                 UserId = user.Id,
                 Name = "Asha Rao",
                 Gender = Gender.Female,
                 DateOfBirth = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-25),
-                City = delhi.Name,
-                CityId = delhi.Id
+                City = city.Name,
+                CityId = city.Id
             });
             // Submitting also requires preferences, so a fixture with a profile gets both.
             db.MemberPreferences.Add(new MemberPreferences

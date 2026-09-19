@@ -27,7 +27,7 @@ public sealed class MemberProfileCityMigrationTests(AuthApiFactory factory)
         var sp = scope.ServiceProvider;
         var db = sp.GetRequiredService<AyneraDbContext>();
         var migrator = db.GetService<IMigrator>();
-        var delhi = await db.EarlyAccessCities.SingleAsync(c => c.Name == "Delhi");
+        var city = await db.EarlyAccessCities.SingleAsync(c => c.Name == "Bangalore");
 
         var matched = await CreateMemberAsync(sp, "matched");
         var unmatched = await CreateMemberAsync(sp, "unmatched");
@@ -39,7 +39,7 @@ public sealed class MemberProfileCityMigrationTests(AuthApiFactory factory)
             await db.Database.ExecuteSqlRawAsync(
                 """
                 INSERT INTO "MemberProfiles" ("UserId", "FirstName", "LastName", "Gender", "DateOfBirth", "City", "CityId", "CreatedAtUtc", "IsDeleted")
-                VALUES ({0}, 'Legacy', 'Match', 'Female', '1990-05-15', '  delhi ', NULL, now(), FALSE),
+                VALUES ({0}, 'Legacy', 'Match', 'Female', '1990-05-15', '  bangalore ', NULL, now(), FALSE),
                        ({1}, 'Legacy', 'Miss',  'Female', '1990-05-15', 'Atlantis', NULL, now(), FALSE);
                 """,
                 matched, unmatched);
@@ -54,8 +54,8 @@ public sealed class MemberProfileCityMigrationTests(AuthApiFactory factory)
             await migrator.MigrateAsync();
 
             var row = await db.MemberProfiles.AsNoTracking().SingleAsync(p => p.UserId == matched);
-            Assert.Equal(delhi.Id, row.CityId);
-            Assert.Equal("Delhi", row.City);
+            Assert.Equal(city.Id, row.CityId);
+            Assert.Equal("Bangalore", row.City);
 
             var nullable = await db.Database
                 .SqlQueryRaw<string>("""SELECT is_nullable AS "Value" FROM information_schema.columns WHERE table_name = 'MemberProfiles' AND column_name = 'CityId'""")

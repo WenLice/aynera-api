@@ -31,7 +31,7 @@ public class PublicEndpointsTests
         Assert.Equal(HttpStatusCode.OK, citiesResponse.StatusCode);
         var cities = await citiesResponse.Content.ReadFromJsonAsync<ApiResponse<List<EarlyAccessCityDto>>>(JsonOptions);
         Assert.True(cities!.Success);
-        Assert.Contains(cities.Data!, c => c.Name == "Mumbai");
+        Assert.Contains(cities.Data!, c => c.Name == "Bangalore");
 
         var email = $"early-{Guid.NewGuid():N}@example.com";
         var create = await client.PostAsJsonAsync(
@@ -39,7 +39,7 @@ public class PublicEndpointsTests
             new JoinEarlyAccessRequest(
                 "Ada Lovelace",
                 email,
-                "Mumbai",
+                "Bangalore",
                 "Aynera",
                 true,
                 true,

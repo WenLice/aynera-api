@@ -118,7 +118,7 @@ public sealed class VenueDeliveryConsistencyTests(AuthApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AyneraDbContext>();
         var id = Guid.NewGuid();
         db.Venues.Add(new Venue { Id = id, Name = id.ToString(), Type = VenueType.Cafe,
-            CityId = Guid.NewGuid(), Area = "Delhi", Address = "Test street", ContactName = "Test contact",
+            CityId = Guid.NewGuid(), Area = "Bangalore", Address = "Test street", ContactName = "Test contact",
             ContactEmail = $"{id:N}@example.com", ContactPhoneE164 = "+919876543210", IsActive = true });
         foreach (var channel in new[] { VenueNotificationChannel.Email, VenueNotificationChannel.Sms })
             db.VenueNotifications.Add(new VenueNotification { Id = Guid.NewGuid(), VenueId = id, Channel = channel,

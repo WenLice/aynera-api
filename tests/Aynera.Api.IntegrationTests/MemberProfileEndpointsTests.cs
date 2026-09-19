@@ -89,7 +89,7 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             "Ada Lovelace",
             Gender.Female,
             Adult,
-            "Delhi",
+            "Bangalore",
             Nickname: "Adz",
             HeightCm: 168,
             Hometown: "Pune",
@@ -134,7 +134,7 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
               "name": "Ada Lovelace",
               "gender": {{genderJson}},
               "dateOfBirth": "{{Adult:yyyy-MM-dd}}",
-              "city": "Delhi"
+              "city": "Bangalore"
             }
             """;
 
@@ -159,14 +159,14 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             "Ada Lovelace",
             Gender.Female,
             Adult,
-            "Delhi"));
+            "Bangalore"));
         Assert.True((await Body<AuthAccountDto>(shown))!.Data!.Profile!.GenderIsPublic);
 
         var hidden = await client.PutAsJsonAsync("/members/me/profile", new UpdateMemberProfileRequest(
             "Ada Lovelace",
             Gender.Female,
             Adult,
-            "Delhi",
+            "Bangalore",
             GenderIsPublic: false));
         Assert.Equal(HttpStatusCode.OK, hidden.StatusCode);
 
@@ -203,7 +203,7 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             "Kid User",
             Gender.Male,
             DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-16)),
-            "Delhi"));
+            "Bangalore"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -217,7 +217,7 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             "Ada Lovelace",
             Gender.Female,
             Adult,
-            "Delhi"));
+            "Bangalore"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

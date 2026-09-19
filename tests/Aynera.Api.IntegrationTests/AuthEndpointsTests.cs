@@ -163,7 +163,7 @@ public class AuthEndpointsTests
             "Ada Lovelace",
             Gender.Female,
             new DateOnly(1990, 5, 15),
-            "Mumbai",
+            "Bangalore",
             email,
             Religion: "Hindu",
             Password: password);
@@ -253,7 +253,7 @@ public class AuthEndpointsTests
         Assert.NotNull(envelope.Data.Profile);
         Assert.Equal("Ada Lovelace", envelope.Data.Profile!.Name);
         Assert.Equal("Female", envelope.Data.Profile.Gender);
-        Assert.Equal("Mumbai", envelope.Data.Profile.City);
+        Assert.Equal("Bangalore", envelope.Data.Profile.City);
         Assert.False(envelope.Data.EmailConfirmed);
         Assert.False(string.IsNullOrWhiteSpace(await _factory.DeliverVerificationAsync("new.member@example.com")));
 
@@ -313,7 +313,7 @@ public class AuthEndpointsTests
             "Kid User",
             Gender.Male,
             DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-16)),
-            "Delhi",
+            "Bangalore",
             "kid@example.com");
 
         var response = await client.PostAsJsonAsync("/members/register", body);
@@ -330,21 +330,21 @@ public class AuthEndpointsTests
     {
         var client = _factory.CreateClient();
         var phone = "7" + Random.Shared.NextInt64(100_000_000, 999_999_999);
-        var body = RegisterBody(phone, $"city-{Guid.NewGuid():N}@example.com") with { City = "  delhi " };
+        var body = RegisterBody(phone, $"city-{Guid.NewGuid():N}@example.com") with { City = "  bangalore " };
 
         var response = await client.PostAsJsonAsync("/members/register", body);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var created = await response.Content.ReadFromJsonAsync<ApiResponse<AuthAccountDto>>(JsonOptions);
         var profile = created!.Data!.Profile!;
-        Assert.Equal("Delhi", profile.City);
+        Assert.Equal("Bangalore", profile.City);
         Assert.NotEqual(Guid.Empty, profile.CityId);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AyneraDbContext>();
-        var delhi = await db.EarlyAccessCities.SingleAsync(c => c.Name == "Delhi");
-        Assert.Equal(delhi.Id, profile.CityId);
-        Assert.Equal(delhi.Id, (await db.MemberProfiles.SingleAsync(p => p.UserId == created.Data.Id)).CityId);
+        var city = await db.EarlyAccessCities.SingleAsync(c => c.Name == "Bangalore");
+        Assert.Equal(city.Id, profile.CityId);
+        Assert.Equal(city.Id, (await db.MemberProfiles.SingleAsync(p => p.UserId == created.Data.Id)).CityId);
     }
 
     [Fact]

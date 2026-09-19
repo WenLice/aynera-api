@@ -10,16 +10,17 @@ namespace Aynera.Infrastructure;
 public sealed class EarlyAccessCitySeedHostedService : IHostedService
 {
     /// <summary>
-    /// Launch catalog defaults for a fresh database. Wave 1 is open for registration;
-    /// later waves are listed so the public site can collect interest. Bangalore opens first.
-    /// Existing rows are never touched here — see the BangaloreOpensFirst migration, and
-    /// <c>PATCH /early-access/cities/{id}</c> for changes after that.
+    /// Launch catalog defaults for a fresh database. The pilot is Bangalore only.
+    ///
+    /// Delhi and Mumbai were seeded as Wave 2 so the public site could collect interest; they
+    /// were withdrawn on 2026-09-20 (migration <c>WithdrawWaveTwoCities</c>) because offering a
+    /// city the product cannot yet serve collects signups nobody will honour. Add later waves
+    /// back through <c>POST /early-access/cities/Create</c> when that city actually opens —
+    /// this seeder only fills a fresh database and never touches existing rows.
     /// </summary>
     private static readonly (string Name, int Wave, int SortOrder)[] SeedCities =
     [
-        ("Bangalore", 1, 1),
-        ("Delhi", 2, 2),
-        ("Mumbai", 2, 3)
+        ("Bangalore", 1, 1)
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;

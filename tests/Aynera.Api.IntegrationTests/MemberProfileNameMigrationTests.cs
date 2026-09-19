@@ -29,7 +29,7 @@ public sealed class MemberProfileNameMigrationTests(AuthApiFactory factory)
         var sp = scope.ServiceProvider;
         var db = sp.GetRequiredService<AyneraDbContext>();
         var migrator = db.GetService<IMigrator>();
-        var delhi = await db.EarlyAccessCities.SingleAsync(c => c.Name == "Delhi");
+        var city = await db.EarlyAccessCities.SingleAsync(c => c.Name == "Bangalore");
 
         var both = await CreateMemberAsync(sp, "both");
         var firstOnly = await CreateMemberAsync(sp, "first-only");
@@ -45,7 +45,7 @@ public sealed class MemberProfileNameMigrationTests(AuthApiFactory factory)
                        ({1}, 'Prince', '',       'Other',  '1990-05-15', {3}, {4}, now(), FALSE),
                        ({2}, '',     '  ',       'Male',   '1990-05-15', {3}, {4}, now(), FALSE);
                 """,
-                both, firstOnly, nameless, delhi.Name, delhi.Id);
+                both, firstOnly, nameless, city.Name, city.Id);
 
             // 1. A row with nothing to build a name from must block the migration, not get a placeholder.
             var blocked = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync());

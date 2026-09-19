@@ -44,7 +44,7 @@ public sealed class RedisOtpConsumptionTests(RedisOtpAuthApiFactory factory)
                 "Ada Lovelace",
                 Gender.Female,
                 new DateOnly(1990, 5, 15),
-                "Mumbai",
+                "Bangalore",
                 $"redis-otp-{Guid.NewGuid():N}@example.com",
                 Password: "secret12"));
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
@@ -89,7 +89,7 @@ public sealed class RedisOtpConsumptionTests(RedisOtpAuthApiFactory factory)
                 "Ada Lovelace",
                 Gender.Female,
                 new DateOnly(1990, 5, 15),
-                "Mumbai",
+                "Bangalore",
                 $"redis-login-{Guid.NewGuid():N}@example.com",
                 Password: "secret12"));
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
