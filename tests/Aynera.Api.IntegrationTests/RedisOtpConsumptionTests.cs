@@ -93,7 +93,7 @@ public sealed class RedisOtpConsumptionTests(RedisOtpAuthApiFactory factory)
                 $"redis-login-{Guid.NewGuid():N}@example.com",
                 Password: "secret12"));
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
-        using var requested = await client.PostAsJsonAsync("/auth/login", new RequestMemberOtpRequest(phone));
+        using var requested = await client.PostAsJsonAsync("/auth/otp/request", new RequestMemberOtpRequest(phone));
         Assert.Equal(HttpStatusCode.OK, requested.StatusCode);
         var code = factory.Sms.GetCode("+91" + phone);
         Assert.False(string.IsNullOrWhiteSpace(code));
@@ -101,8 +101,8 @@ public sealed class RedisOtpConsumptionTests(RedisOtpAuthApiFactory factory)
         using var firstClient = factory.CreateClient();
         using var secondClient = factory.CreateClient();
         var verifications = await Task.WhenAll(
-            firstClient.PostAsJsonAsync("/auth/verifysms", new VerifyMemberOtpRequest(phone, code!)),
-            secondClient.PostAsJsonAsync("/auth/verifysms", new VerifyMemberOtpRequest(phone, code!)));
+            firstClient.PostAsJsonAsync("/auth/otp/verify", new VerifyMemberOtpRequest(phone, code!)),
+            secondClient.PostAsJsonAsync("/auth/otp/verify", new VerifyMemberOtpRequest(phone, code!)));
         using (verifications[0])
         using (verifications[1])
         {

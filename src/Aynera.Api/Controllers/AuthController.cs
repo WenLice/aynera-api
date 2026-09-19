@@ -45,20 +45,22 @@ public sealed class AuthController : BaseController
         return OkResponse(account);
     }
 
-    /// <summary>Login</summary>
+    /// <summary>OtpRequest</summary>
     /// <remarks>
-    /// Starts member login by sending an OTP to a registered Indian mobile number or email.
+    /// Starts member OTP login by sending a code to a registered Indian mobile number or email.
+    /// This only sends the code — it issues no tokens; complete the sign-in with OtpVerify.
+    /// For a one-call sign-in with a password instead, use PasswordLogin (<c>POST auth/password</c>).
     /// Fails with user_not_found if the identifier is not a member account (Register first).
     /// Admin accounts are rejected with the same user_not_found response.
     /// Dev default is Console (no send). OTP codes are never written to logs.
-    /// Next step: VerifySms with the same identifier and the OTP code (SMS or email).
+    /// Next step: OtpVerify with the same identifier and the OTP code (SMS or email).
     /// </remarks>
-    [HttpPost("login")]
+    [HttpPost("otp/request")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<RequestMemberOtpResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<ApiResponse<RequestMemberOtpResponse>>> Login(
+    public async Task<ActionResult<ApiResponse<RequestMemberOtpResponse>>> OtpRequest(
         [FromBody] RequestMemberOtpRequest request,
         CancellationToken cancellationToken)
     {
@@ -69,18 +71,19 @@ public sealed class AuthController : BaseController
         return OkResponse(result);
     }
 
-    /// <summary>VerifySms</summary>
+    /// <summary>OtpVerify</summary>
     /// <remarks>
-    /// Verifies the SMS or email OTP for an existing registered member, marks that identifier confirmed, and issues tokens.
-    /// Does not create accounts — Register first, then Login, then VerifySms.
+    /// Verifies the OTP sent by OtpRequest — by SMS or by email, despite the former <c>verifysms</c> name —
+    /// marks that identifier confirmed, and issues member tokens.
+    /// Does not create accounts — Register first, then OtpRequest, then OtpVerify.
     /// Deactivated accounts cannot complete login until Reactivate.
     /// </remarks>
-    [HttpPost("verifysms")]
+    [HttpPost("otp/verify")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<TokenResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<TokenResponse>>> VerifySms(
+    public async Task<ActionResult<ApiResponse<TokenResponse>>> OtpVerify(
         [FromBody] VerifyMemberOtpRequest request,
         CancellationToken cancellationToken)
     {
@@ -90,8 +93,10 @@ public sealed class AuthController : BaseController
 
     /// <summary>PasswordLogin</summary>
     /// <remarks>
-    /// Signs in a registered member with phone or email plus password. Issues member tokens (<c>aud=member</c>, <c>amr=pwd</c>).
-    /// Fails with password_not_set if the account has no password yet — use OTP login, then SetPassword, or register with a password.
+    /// Signs in a registered member with phone or email plus password, in one call. Issues member tokens (<c>aud=member</c>, <c>amr=pwd</c>).
+    /// This is the password alternative to the two-step OtpRequest + OtpVerify pair.
+    /// Fails with password_not_set if the account has no password yet — members who registered through the app
+    /// (phone OTP then email OTP) have none until they set one via <c>POST members/me/password</c>.
     /// Admin accounts are rejected as user_not_found.
     /// </remarks>
     [HttpPost("password")]

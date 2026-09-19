@@ -130,7 +130,7 @@ State is checked on every authorized request. This is not permanent token revoca
 | `feedback_rate_limited` | 429 | Too many feedback posts from IP |
 | `suggestion_message_too_long` | 400 | Suggestion message exceeds max length |
 | `suggestion_rate_limited` | 429 | Too many suggestion posts from IP |
-| `user_not_found` | 404 | Account missing (Login/VerifySms/Password without Register, admin door without a seeded admin, or `/me`). The other product’s accounts are hidden behind this code. |
+| `user_not_found` | 404 | Account missing (OtpRequest/OtpVerify/PasswordLogin without Register, admin door without a seeded admin, or `/me`). The other product’s accounts are hidden behind this code. |
 | `super_admin_required` | 403 | Authenticated admin is not a super-admin (admin management writes and list) |
 | `cannot_deactivate_self` | 409 | Super-admin tried to deactivate their own account |
 | `last_admin` | 409 | The last active admin cannot be deactivated |
@@ -522,13 +522,13 @@ Login, password reset, and identifier-only bodies cannot reactivate an inactive 
 
 ---
 
-### Auth — Login
+### Auth — OtpRequest
 
 | | |
 |--|--|
-| **Name** | Login |
-| **Purpose** | Start member login by sending an OTP to a **registered** phone or email: rate-limit check, store hashed OTP in Redis (`otp:phone:{e164}` or `otp:email:{normalized}`), send code (dev stub does not deliver). Fails if the identifier is not an active member. Admin accounts return `user_not_found`. |
-| **Method / path** | `POST /auth/login` |
+| **Name** | OtpRequest |
+| **Purpose** | Start member OTP login by sending a code to a **registered** phone or email: rate-limit check, store hashed OTP in Redis (`otp:phone:{e164}` or `otp:email:{normalized}`), send code (dev stub does not deliver). Issues **no tokens** — finish with OtpVerify, or use PasswordLogin for a one-call sign-in. Fails if the identifier is not an active member. Admin accounts return `user_not_found`. |
+| **Method / path** | `POST /auth/otp/request` (renamed 2026-09-19 from `POST /auth/login`, no alias) |
 | **Auth** | Anonymous |
 | **Tags** | Auth |
 
@@ -555,13 +555,13 @@ Login, password reset, and identifier-only bodies cannot reactivate an inactive 
 
 ---
 
-### Auth — VerifySms
+### Auth — OtpVerify
 
 | | |
 |--|--|
-| **Name** | VerifySms |
-| **Purpose** | Validate the login OTP for an **existing** registered member; mark that phone or email confirmed; issue access + refresh tokens. Path name is historical — it verifies SMS **or** email OTP. Does **not** create accounts. The hashed challenge is consumed once (atomic in Redis and in-memory). |
-| **Method / path** | `POST /auth/verifysms` |
+| **Name** | OtpVerify |
+| **Purpose** | Validate the OTP sent by OtpRequest for an **existing** registered member; mark that phone or email confirmed; issue access + refresh tokens. Verifies SMS **or** email codes — the old `verifysms` name implied otherwise. Does **not** create accounts. The hashed challenge is consumed once (atomic in Redis and in-memory). |
+| **Method / path** | `POST /auth/otp/verify` (renamed 2026-09-19 from `POST /auth/verifysms`, no alias) |
 | **Auth** | Anonymous |
 | **Tags** | Auth |
 
@@ -1327,8 +1327,8 @@ Admission review is one input to match eligibility, never the whole of it. The *
 | VerifyEmailCode | `POST` | `/members/me/email/verify` | `Member` | `{ email, code }` | `AuthAccountDto` |
 | SaveProfile | `PUT` | `/members/me/profile` | `Member` | `UpdateMemberProfileRequest` | `AuthAccountDto` |
 | VerifyEmail | `POST` | `/auth/verifyemail` | Anonymous | `ConfirmEmailRequest` | `AuthAccountDto` |
-| Login | `POST` | `/auth/login` | Anonymous | `RequestMemberOtpRequest` | `RequestMemberOtpResponse` |
-| VerifySms | `POST` | `/auth/verifysms` | Anonymous | `VerifyMemberOtpRequest` | `TokenResponse` |
+| OtpRequest | `POST` | `/auth/otp/request` | Anonymous | `RequestMemberOtpRequest` | `RequestMemberOtpResponse` |
+| OtpVerify | `POST` | `/auth/otp/verify` | Anonymous | `VerifyMemberOtpRequest` | `TokenResponse` |
 | PasswordLogin | `POST` | `/auth/password` | Anonymous | `MemberPasswordLoginRequest` | `TokenResponse` |
 | ForgotPassword | `POST` | `/auth/password/forgot` | Anonymous | `ForgotMemberPasswordRequest` | `RequestMemberOtpResponse` |
 | ResetPassword | `POST` | `/auth/password/reset` | Anonymous | `ResetMemberPasswordRequest` | `TokenResponse` |
@@ -1398,9 +1398,9 @@ Admission review is one input to match eligibility, never the whole of it. The *
    — optional password enables PasswordLogin immediately
 0b. Open email link → client reads ?userId=&token=
     POST /auth/verifyemail             { userId, token }
-1. OTP login: POST /auth/login         { identifier }   // phone or email
+1. OTP login: POST /auth/otp/request   { identifier }   // phone or email
 2. User enters OTP (dev/tests: capture via SMS or email test double)
-3. POST /auth/verifysms                { identifier, code, audience? }
+3. POST /auth/otp/verify               { identifier, code, audience? }
    — audience defaults to member; confirms that phone or email; does not create the account
    — access JWT 1 hour, refresh 90 days, aud=member, amr=otp
 1b. Or password login: POST /auth/password { identifier, password }  → amr=pwd

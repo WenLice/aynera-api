@@ -39,7 +39,7 @@ dotnet run --project src/Aynera.Api
 ```
 
 - Health: `GET /health`
-- Auth: `POST /auth/verifyemail`, `POST /auth/login`, `POST /auth/verifysms`, `POST /auth/password`, `POST /auth/password/forgot`, `POST /auth/password/reset`, `POST /auth/refresh`, `POST /auth/logout`
+- Auth: `POST /auth/verifyemail`, `POST /auth/otp/request`, `POST /auth/otp/verify`, `POST /auth/password`, `POST /auth/password/forgot`, `POST /auth/password/reset`, `POST /auth/refresh`, `POST /auth/logout`
 - Admin: `POST /auth/admin/otp/request`, `POST /auth/admin/otp/verify`, `POST /auth/admin/password`, `GET /admins/me`, `GET /members/GetAll?page=&pageSize=`, `GET /members/{id}`, `GET /photos/{id}/{photoId}`, `GET /introduction-video/{id}/content`, `POST /members/{id}/restrict`, `POST /members/{id}/unrestrict`, `GET /admins/GetAll`, `POST /admins/Create`, `POST /admins/{id}/deactivate`, `POST /admins/{id}/activate`, `GET /suggestions/GetAll?page=&pageSize=`, `GET /feedback/GetAll?page=&pageSize=`
 - Early access: `GET /early-access/cities/GetAll`, `GET /early-access/signups/GetAll?page=&pageSize=` (Admin), `POST /early-access/register`, `POST /early-access/cities/Create`, `PATCH`/`DELETE /early-access/cities/{id}` (Admin)
 - Members: `POST /members/register`, `GET /members/me`, `POST /members/me/password`, `POST /members/me/deactivate`, `POST /members/me/reactivate`, `POST /members/reactivate/request`, `POST /members/reactivate/recover`, `DELETE /members/me`

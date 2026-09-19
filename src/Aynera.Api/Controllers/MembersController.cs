@@ -49,8 +49,8 @@ public sealed class MembersController : BaseController
     /// Soft-deleted accounts do not block — a new account id is created.
     /// Queues an email verification link for automatic delivery with retries. <c>emailConfirmed</c> stays false until Auth VerifyEmail.
     /// The link opens the member app (or a landing page); that page should POST to <c>/auth/verifyemail</c> with userId + token.
-    /// Does not issue tokens; call Auth Login then VerifySms to confirm the phone or email and sign in,
-    /// or Auth Password if a password was provided.
+    /// Does not issue tokens; call Auth OtpRequest then OtpVerify to confirm the phone or email and sign in,
+    /// or Auth PasswordLogin if a password was provided.
     /// Optional <c>password</c>: at least 8 characters with a lowercase letter and a number.
     /// </remarks>
     [HttpPost("register")]

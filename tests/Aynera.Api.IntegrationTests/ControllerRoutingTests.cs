@@ -62,6 +62,15 @@ public sealed class ControllerRoutingTests
         Assert.Contains("POST admins/Create", routes);
         Assert.Contains("GET admins/me", routes);
         Assert.Contains("POST auth/admin/password", routes);
+        // Member OTP mirrors the admin pair; the password door is the one-call alternative to it.
+        Assert.Contains("POST auth/otp/request", routes);
+        Assert.Contains("POST auth/otp/verify", routes);
+        Assert.Contains("POST auth/password", routes);
+        Assert.Contains("POST auth/admin/otp/request", routes);
+        Assert.Contains("POST auth/admin/otp/verify", routes);
+        // Renamed 2026-09-19: "login"/"verifysms" hid the fact that OTP is one of two doors,
+        // and did not match the admin naming. No aliases, per the Tier 1 rule.
+        Assert.DoesNotContain(routes, r => r.Contains("auth/login") || r.Contains("auth/verifysms"));
         Assert.Contains("POST photos/Upload", routes);
         Assert.Contains("POST introduction-video/Upload", routes);
         Assert.Contains("GET introduction-video/me", routes);
@@ -160,7 +169,7 @@ public sealed class ControllerRoutingTests
             ApiAudience.Of(Assert.Single(descriptions, d => d.HttpMethod == method && d.RelativePath == path));
 
         Assert.Equal(ApiAudience.Member, Audience("GET", "health"));
-        Assert.Equal(ApiAudience.Member, Audience("POST", "auth/login"));
+        Assert.Equal(ApiAudience.Member, Audience("POST", "auth/otp/request"));
         Assert.Equal(ApiAudience.Member, Audience("GET", "members/me"));
         Assert.Equal(ApiAudience.Member, Audience("POST", "feedback/Create"));
         Assert.Equal(ApiAudience.Admin, Audience("GET", "feedback/GetAll"));

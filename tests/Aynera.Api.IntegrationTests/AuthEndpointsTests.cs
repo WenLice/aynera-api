@@ -180,7 +180,7 @@ public class AuthEndpointsTests
         Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
 
         var loginResponse = await client.PostAsJsonAsync(
-            "/auth/login",
+            "/auth/otp/request",
             new RequestMemberOtpRequest(phone));
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
@@ -188,7 +188,7 @@ public class AuthEndpointsTests
         Assert.False(string.IsNullOrWhiteSpace(code));
 
         var verifyResponse = await client.PostAsJsonAsync(
-            "/auth/verifysms",
+            "/auth/otp/verify",
             new VerifyMemberOtpRequest(phone, code!));
         Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
 
@@ -222,7 +222,7 @@ public class AuthEndpointsTests
         var client = _factory.CreateClient();
 
         var loginResponse = await client.PostAsJsonAsync(
-            "/auth/login",
+            "/auth/otp/request",
             new RequestMemberOtpRequest("9111222333"));
         Assert.Equal(HttpStatusCode.NotFound, loginResponse.StatusCode);
 
@@ -379,13 +379,13 @@ public class AuthEndpointsTests
         Assert.NotNull(created?.Data);
 
         var loginResponse = await client.PostAsJsonAsync(
-            "/auth/login",
+            "/auth/otp/request",
             new RequestMemberOtpRequest(phone));
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
         var code = _factory.Sms.GetCode("+916655443322");
         var verifyResponse = await client.PostAsJsonAsync(
-            "/auth/verifysms",
+            "/auth/otp/verify",
             new VerifyMemberOtpRequest(phone, code!));
         Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
 
@@ -417,7 +417,7 @@ public class AuthEndpointsTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
-            "/auth/login",
+            "/auth/otp/request",
             new { phone = "" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -436,11 +436,11 @@ public class AuthEndpointsTests
 
         await client.PostAsJsonAsync("/members/register", RegisterBody(phone, "photos@example.com"));
 
-        var loginResponse = await client.PostAsJsonAsync("/auth/login", new RequestMemberOtpRequest(phone));
+        var loginResponse = await client.PostAsJsonAsync("/auth/otp/request", new RequestMemberOtpRequest(phone));
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
         var code = _factory.Sms.GetCode("+919333444555");
         var verifyResponse = await client.PostAsJsonAsync(
-            "/auth/verifysms",
+            "/auth/otp/verify",
             new VerifyMemberOtpRequest(phone, code!));
         var tokens = await verifyResponse.Content.ReadFromJsonAsync<ApiResponse<TokenResponse>>(JsonOptions);
         client.DefaultRequestHeaders.Authorization =
@@ -501,7 +501,7 @@ public class AuthEndpointsTests
         Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
 
         var loginResponse = await client.PostAsJsonAsync(
-            "/auth/login",
+            "/auth/otp/request",
             new RequestMemberOtpRequest(email));
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
@@ -509,7 +509,7 @@ public class AuthEndpointsTests
         Assert.False(string.IsNullOrWhiteSpace(code));
 
         var verifyResponse = await client.PostAsJsonAsync(
-            "/auth/verifysms",
+            "/auth/otp/verify",
             new VerifyMemberOtpRequest(email, code!));
         Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
 

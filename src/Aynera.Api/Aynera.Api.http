@@ -27,22 +27,31 @@ Content-Type: application/json
   "token": "{{email_token}}"
 }
 
-### Login (send SMS OTP)
-POST {{Aynera.Api_HostAddress}}/auth/login
+### OtpRequest (send the login code by SMS or email)
+POST {{Aynera.Api_HostAddress}}/auth/otp/request
 Content-Type: application/json
 
 {
-  "phone": "9876543210"
+  "identifier": "9876543210"
 }
 
-### VerifySms (complete login)
-POST {{Aynera.Api_HostAddress}}/auth/verifysms
+### OtpVerify (complete the OTP login)
+POST {{Aynera.Api_HostAddress}}/auth/otp/verify
 Content-Type: application/json
 
 {
-  "phone": "9876543210",
+  "identifier": "9876543210",
   "code": "123456",
-  "audience": "member-web"
+  "audience": "member"
+}
+
+### PasswordLogin (the one-call alternative to the OTP pair)
+POST {{Aynera.Api_HostAddress}}/auth/password
+Content-Type: application/json
+
+{
+  "identifier": "9876543210",
+  "password": "Demo12345"
 }
 
 ### Refresh

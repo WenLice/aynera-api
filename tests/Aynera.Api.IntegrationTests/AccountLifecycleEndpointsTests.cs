@@ -138,7 +138,7 @@ public sealed class AccountLifecycleEndpointsTests(AuthApiFactory factory)
         Assert.Equal("otp_invalid", invalidBody!.ErrorCode);
 
         using var loginWithRecoveryCode = await client.PostAsJsonAsync(
-            "/auth/verifysms",
+            "/auth/otp/verify",
             new VerifyMemberOtpRequest(phone, code!));
         Assert.Equal(HttpStatusCode.Unauthorized, loginWithRecoveryCode.StatusCode);
 
