@@ -114,10 +114,9 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT"
     });
 
-    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-    {
-        [new OpenApiSecuritySchemeReference("Bearer", document)] = []
-    });
+    // Per-operation rather than document-wide: a global requirement padlocks anonymous
+    // endpoints too, which made the public early-access routes look like they needed a token.
+    options.OperationFilter<SecurityOnAuthorizedOperations>();
 
     var xmlPath = Path.Combine(AppContext.BaseDirectory, "Aynera.Api.xml");
     if (File.Exists(xmlPath))
