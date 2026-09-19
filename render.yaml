@@ -40,6 +40,12 @@ services:
       # deploys; replacing it invalidates every existing session.
       - key: Aynera__Jwt__SigningKey
         generateValue: true
+      # Set to "true" in the dashboard to serve Swagger on a deployed instance, and back to
+      # "false" when you are done. Do NOT switch ASPNETCORE_ENVIRONMENT to Development for
+      # this instead: that also picks up appsettings.Development.json, which reveals OTP
+      # codes in the logs.
+      - key: Aynera__ExposeSwagger
+        sync: false
       # First admin, created only when no admin exists yet. Leave unset to skip seeding.
       - key: Aynera__AdminSeed__Email
         sync: false

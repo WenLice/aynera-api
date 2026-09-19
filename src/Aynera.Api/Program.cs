@@ -193,7 +193,15 @@ else
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-if (app.Environment.IsDevelopment())
+// Always on in Development, and elsewhere only when explicitly switched on.
+//
+// Deliberately its own flag rather than tied to the environment: switching a deployed
+// instance to Development to get the docs would also pick up appsettings.Development.json,
+// which sets Aynera:Otp:RevealCodesInLogs and would print every login code into that
+// environment's log stream. This exposes the API's shape, not its data — every endpoint
+// still enforces its own policy — but leave it off once you no longer need it.
+if (app.Environment.IsDevelopment()
+    || app.Configuration.GetValue("Aynera:ExposeSwagger", false))
 {
     app.UseSwagger();
     app.UseSwaggerUI(options =>
