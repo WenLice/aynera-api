@@ -138,12 +138,17 @@ if (!builder.Environment.IsDevelopment()
 builder.Services.AddProblemDetails();
 builder.Services.AddAyneraApplication();
 builder.Services.AddAyneraNotifications(builder.Configuration);
+// Honoured in every environment, so a single-instance deployment can run without Redis at all.
+// It was previously read only under Testing, which left every other environment pinned to Redis
+// and falling back to localhost:6379 — a deployed instance with no Redis could not serve a single
+// request. The default still differs by environment: Testing runs in memory, everything else
+// expects Redis, because OTP challenges held in memory are per-process and a second instance
+// could not verify a code the first issued.
 builder.Services.AddAyneraInfrastructure(builder.Configuration, options =>
 {
-    if (builder.Environment.IsEnvironment("Testing"))
-    {
-        options.UseInMemoryOtpStore = builder.Configuration.GetValue("Aynera:UseInMemoryOtpStore", true);
-    }
+    options.UseInMemoryOtpStore = builder.Configuration.GetValue(
+        "Aynera:UseInMemoryOtpStore",
+        builder.Environment.IsEnvironment("Testing"));
 });
 
 builder.Services.AddCors(options =>

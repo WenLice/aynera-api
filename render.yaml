@@ -8,10 +8,17 @@
 # connection string points at an external free Postgres (Neon or Supabase) and is set
 # in the dashboard rather than committed.
 #
-# Redis is also absent on purpose: `Aynera:UseInMemoryOtpStore` defaults to true, so a
-# single instance runs without it. Add Redis before running more than one instance —
-# in-memory OTP challenges are per-process, so a second instance would fail to verify
-# codes issued by the first.
+# Redis IS required unless you opt out. OTP challenges and the public-form rate limiter
+# live in Redis outside the Testing environment; without AYNERA_REDIS the app falls back to
+# localhost:6379 and every request that touches either one fails.
+#
+# Two ways to satisfy it, both set in the dashboard:
+#   AYNERA_REDIS                     -> a managed Redis (Upstash and Redis Cloud both have a
+#                                       free tier). Survives restarts. Preferred.
+#   Aynera__UseInMemoryOtpStore=true -> no Redis at all. Only safe on ONE instance, and
+#                                       challenges are lost whenever the instance restarts
+#                                       or Render spins it down after 15 idle minutes, so a
+#                                       member can lose a code between request and verify.
 services:
   - type: web
     name: aynera-api
@@ -40,6 +47,15 @@ services:
       # deploys; replacing it invalidates every existing session.
       - key: Aynera__Jwt__SigningKey
         generateValue: true
+      # Managed Redis connection string, e.g. Upstash:
+      #   <host>:6379,password=<token>,ssl=True,abortConnect=False
+      # abortConnect=False lets the app start even if Redis is briefly unreachable.
+      # Leave unset only if Aynera__UseInMemoryOtpStore is "true".
+      - key: AYNERA_REDIS
+        sync: false
+      # "true" runs OTP and rate limiting in memory, with no Redis. One instance only.
+      - key: Aynera__UseInMemoryOtpStore
+        sync: false
       # Set to "true" in the dashboard to serve Swagger on a deployed instance, and back to
       # "false" when you are done. Do NOT switch ASPNETCORE_ENVIRONMENT to Development for
       # this instead: that also picks up appsettings.Development.json, which reveals OTP
