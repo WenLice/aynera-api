@@ -33,10 +33,13 @@ services:
         sync: false
       # REQUIRED. appsettings.json ships a "CHANGE_ME_TO_A_LONG_RANDOM_SECRET_KEY_32+"
       # placeholder, so deploying without this would sign every token with a value that
-      # is public in the repository. Generate 32+ random characters; changing it later
-      # invalidates every existing session.
+      # is public in the repository.
+      #
+      # generateValue has Render mint a base64-encoded 256-bit secret on first deploy, so
+      # nobody has to generate or handle one by hand. It is generated once and kept across
+      # deploys; replacing it invalidates every existing session.
       - key: Aynera__Jwt__SigningKey
-        sync: false
+        generateValue: true
       # First admin, created only when no admin exists yet. Leave unset to skip seeding.
       - key: Aynera__AdminSeed__Email
         sync: false
