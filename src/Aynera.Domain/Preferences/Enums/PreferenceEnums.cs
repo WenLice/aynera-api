@@ -25,8 +25,12 @@ public enum RelationshipTrack
     Intent = 1
 }
 
-/// <summary>The two children of each track.</summary>
-public enum IntentOutcome
+/// <summary>
+/// The two children of each track. Renamed from <c>IntentOutcome</c>, which read as "the outcome
+/// for the Intent track" while also holding <see cref="Platonic"/> and <see cref="Spontaneous"/> —
+/// both of which belong to Fluid. <c>PreferenceRules.TrackFor</c> maps each value to its track.
+/// </summary>
+public enum RelationshipOutcome
 {
     /// <summary>Fluid — friendship and networking, clearly labelled.</summary>
     Platonic = 0,

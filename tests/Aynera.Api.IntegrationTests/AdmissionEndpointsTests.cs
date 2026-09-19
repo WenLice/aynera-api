@@ -263,7 +263,8 @@ public sealed class AdmissionEndpointsTests(AuthApiFactory factory)
                 MinAge = 24,
                 MaxAge = 32,
                 AgeIsFlexible = false,
-                IntentOutcome = IntentOutcome.Prospect
+                Track = RelationshipTrack.Intent,
+                Outcome = RelationshipOutcome.Prospect
             });
             await db.SaveChangesAsync();
         }

@@ -2,6 +2,7 @@ using Aynera.Application.Features.Preferences.Repositories;
 using Aynera.Domain.Auth.Exceptions;
 using Aynera.Domain.Preferences.Enums;
 using Aynera.Domain.Preferences.Records;
+using Aynera.Domain.Preferences.Validators;
 using Aynera.Persistence;
 using Aynera.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -46,11 +47,27 @@ public sealed class MemberPreferencesRepository : IMemberPreferencesRepository
                 "Interested in must be Male, Female, Other, or Everyone.");
         }
 
-        if (!Enum.TryParse<IntentOutcome>(preferences.IntentOutcome, ignoreCase: true, out var outcome))
+        if (!Enum.TryParse<RelationshipOutcome>(preferences.Outcome, ignoreCase: true, out var outcome))
         {
             throw new AuthException(
-                "invalid_intent_outcome",
-                "Intent outcome must be Platonic, Spontaneous, Prospect, or Legacy.");
+                "invalid_outcome",
+                "Outcome must be Platonic, Spontaneous, Prospect, or Legacy.");
+        }
+
+        if (!Enum.TryParse<RelationshipTrack>(preferences.Track, ignoreCase: true, out var track))
+        {
+            throw new AuthException(
+                "invalid_track",
+                "Track must be Fluid or Intent.");
+        }
+
+        // Last line of defence: the request validator already rejects a mismatched pair, but this
+        // repository is also reachable from any future caller that does not go through it.
+        if (track != PreferenceRules.TrackFor(outcome))
+        {
+            throw new AuthException(
+                "track_outcome_mismatch",
+                $"{outcome} belongs to the {PreferenceRules.TrackFor(outcome)} track.");
         }
 
         var existing = await _db.MemberPreferences
@@ -74,7 +91,8 @@ public sealed class MemberPreferencesRepository : IMemberPreferencesRepository
         existing.MinAge = preferences.MinAge;
         existing.MaxAge = preferences.MaxAge;
         existing.AgeIsFlexible = preferences.AgeIsFlexible;
-        existing.IntentOutcome = outcome;
+        existing.Track = track;
+        existing.Outcome = outcome;
 
         await _db.SaveChangesAsync(cancellationToken);
         return ToRecord(existing);
@@ -101,5 +119,6 @@ public sealed class MemberPreferencesRepository : IMemberPreferencesRepository
             entity.MinAge,
             entity.MaxAge,
             entity.AgeIsFlexible,
-            entity.IntentOutcome.ToString());
+            entity.Track.ToString(),
+            entity.Outcome.ToString());
 }

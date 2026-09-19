@@ -196,6 +196,34 @@ Body of `PUT /members/me/profile`. A **full replace**: omitted optional fields a
 | `work` | `string` or `null` | |
 | `religion` | `string` or `null` | |
 
+### `UpdateMemberPreferencesRequest`
+
+Body of `PUT /preferences/me`. A full replace.
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `interestedIn` | string | Required. `Male` \| `Female` \| `Other` \| `Everyone`. Stored as the **choice**, not the expanded gender set, so widening what `Everyone` covers carries existing rows |
+| `minAge` | int | Required. 18–45 |
+| `maxAge` | int? | **Null means an open upper end** — "`minAge` and older". When sent, 18–45 and `>= minAge`. The app sends null when its slider sits at the ceiling; without this, nobody could express interest above 45 (47 with flexibility), so older members passed nobody's reciprocal age filter |
+| `track` | string | Required. `Fluid` \| `Intent` |
+| `outcome` | string | Required. `Platonic` \| `Spontaneous` (Fluid) \| `Prospect` \| `Legacy` (Intent) |
+| `ageIsFlexible` | bool | Optional, default `false`. Widens the range by **two years at each end** when a pair is evaluated |
+
+`track` must own `outcome`, or the request is refused with `validation_failed`. The track is stored rather than derived so the member's two-stage choice is recorded as made; validating it on every write is what keeps the pair from ever contradicting itself. Matching filters on `outcome` alone — two `Fluid` members wanting different things are not a match.
+
+### `MemberPreferencesDto`
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `interestedIn` | string | `Male` \| `Female` \| `Other` \| `Everyone` |
+| `minAge` | int | The stated floor, before any flexibility is applied |
+| `maxAge` | int? | The stated ceiling, or **null for an open upper end**. Flexibility has nothing to widen on an open end |
+| `ageIsFlexible` | bool | |
+| `track` | string | `Fluid` \| `Intent` — read back from the row, not recomputed |
+| `outcome` | string | `Platonic` \| `Spontaneous` \| `Prospect` \| `Legacy` |
+
+Never shown to anyone but the member and staff — these are hard filters, not profile content.
+
 ### `RequestMemberOtpRequest`
 
 | Attribute | Type | Required | Validation / notes |
@@ -934,6 +962,59 @@ Wave 2+ = add cities here; anonymous `GET /early-access/cities/GetAll` picks the
 
 ---
 
+### Preferences — GetMyPreferences
+
+| | |
+|--|--|
+| **Name** | GetMyPreferences |
+| **Purpose** | Return the authenticated member's matching hard filters (MATCHMAKING-RULES §6). `data` is `null` when they have not been set yet — not a 404, because "unset" is a normal state during registration. |
+| **Method / path** | `GET /preferences/me` |
+| **Auth** | Bearer JWT + policy **`Member`** |
+| **Tags** | Preferences |
+
+**Response `data` model:** `MemberPreferencesDto` (nullable)
+
+**Response types**
+
+| HTTP | Body | When |
+|------|------|------|
+| 200 | `ApiResponse<MemberPreferencesDto?>` | Loaded, or `null` if never saved |
+| 401 | `ApiResponse` or empty challenge | Missing/invalid token |
+| 500 | `ApiResponse<object?>` | Unexpected |
+
+---
+
+### Preferences — SavePreferences
+
+| | |
+|--|--|
+| **Name** | SavePreferences |
+| **Purpose** | Write the authenticated member's matching hard filters, creating the row on first save. A **full replace**, not a patch. Required before `POST /admissions/me/submit` is accepted. |
+| **Method / path** | `PUT /preferences/me` |
+| **Auth** | Bearer JWT + policy **`Member`** |
+| **Tags** | Preferences |
+
+**Request**
+
+| Source | Model |
+|--------|-------|
+| Body | `UpdateMemberPreferencesRequest` |
+| Headers | `Authorization: Bearer {accessToken}` |
+
+**Response `data` model:** `MemberPreferencesDto`
+
+**Response types**
+
+| HTTP | Body | When |
+|------|------|------|
+| 200 | `ApiResponse<MemberPreferencesDto>` | Saved |
+| 400 | `ApiResponse<object?>` | `validation_failed` — bad enum, age outside 18–45, `maxAge < minAge`, or a **track that does not own the outcome** |
+| 401 | `ApiResponse` or empty challenge | Missing/invalid token |
+| 404 | `ApiResponse<object?>` | `user_not_found` |
+| 500 | `ApiResponse<object?>` | Unexpected |
+
+---
+
 ### Members — SetPassword
 
 | | |
@@ -1361,6 +1442,8 @@ Admission review is one input to match eligibility, never the whole of it. The *
 | AcceptConsent | `POST` | `/admissions/me/consents` | `Member` | `AcceptConsentRequest` | `MemberAdmissionDto` |
 | Me | `GET` | `/members/me` | `Member` | — | `AuthAccountDto` |
 | SetPassword | `POST` | `/members/me/password` | `Member` | `SetMemberPasswordRequest` | `null` |
+| GetMyPreferences | `GET` | `/preferences/me` | `Member` | — | `MemberPreferencesDto?` |
+| SavePreferences | `PUT` | `/preferences/me` | `Member` | `UpdateMemberPreferencesRequest` | `MemberPreferencesDto` |
 | UploadPhotos | `POST` | `/photos/Upload` | `Member` | multipart `photos` | `MemberPhotoDto[]` |
 | ListPhotos | `GET` | `/photos/GetAll` | `Member` | — | `MemberPhotoDto[]` |
 | GetPhoto | `GET` | `/photos/{photoId}` | `Member` | — | image bytes |

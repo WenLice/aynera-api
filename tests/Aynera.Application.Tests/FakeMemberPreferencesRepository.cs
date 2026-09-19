@@ -10,7 +10,7 @@ internal sealed class FakeMemberPreferencesRepository : IMemberPreferencesReposi
 
     /// <summary>Gives a member the minimum preferences the submit gate requires.</summary>
     public void Set(Guid userId) =>
-        _byUserId[userId] = new MemberPreferencesRecord(userId, "Everyone", 24, 32, false, "Prospect");
+        _byUserId[userId] = new MemberPreferencesRecord(userId, "Everyone", 24, 32, false, "Intent", "Prospect");
 
     public void Remove(Guid userId) => _byUserId.Remove(userId);
 

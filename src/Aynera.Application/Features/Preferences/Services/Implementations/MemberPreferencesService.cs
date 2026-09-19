@@ -49,7 +49,8 @@ public sealed class MemberPreferencesService(
                         request.MinAge,
                         request.MaxAge,
                         request.AgeIsFlexible,
-                        request.IntentOutcome.ToString()),
+                        request.Track.ToString(),
+                        request.Outcome.ToString()),
                     ct);
 
                 return (previous, saved);
@@ -71,7 +72,8 @@ public sealed class MemberPreferencesService(
                     ("minAge", before?.MinAge, after.MinAge),
                     ("maxAge", before?.MaxAge, after.MaxAge),
                     ("ageIsFlexible", before?.AgeIsFlexible, after.AgeIsFlexible),
-                    ("intentOutcome", before?.IntentOutcome, after.IntentOutcome)
+                    ("track", before?.Track, after.Track),
+                    ("outcome", before?.Outcome, after.Outcome)
                 ])),
             cancellationToken);
 
@@ -79,15 +81,15 @@ public sealed class MemberPreferencesService(
         return ToDto(after);
     }
 
-    private static MemberPreferencesDto ToDto(MemberPreferencesRecord record)
-    {
-        var outcome = Enum.Parse<Domain.Preferences.Enums.IntentOutcome>(record.IntentOutcome);
-        return new MemberPreferencesDto(
+    // The track is read back from the row rather than recomputed: it is validated against the
+    // outcome on every write, so the stored value is authoritative and a silent recompute here
+    // would hide a row that had somehow drifted instead of surfacing it.
+    private static MemberPreferencesDto ToDto(MemberPreferencesRecord record) =>
+        new(
             record.InterestedIn,
             record.MinAge,
             record.MaxAge,
             record.AgeIsFlexible,
-            record.IntentOutcome,
-            PreferenceRules.TrackFor(outcome).ToString());
-    }
+            record.Track,
+            record.Outcome);
 }

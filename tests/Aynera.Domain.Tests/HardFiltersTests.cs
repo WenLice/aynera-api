@@ -15,9 +15,9 @@ public class HardFiltersTests
         Guid? cityId = null,
         InterestedIn interestedIn = InterestedIn.Everyone,
         int minAge = 18,
-        int maxAge = 45,
+        int? maxAge = 45,
         bool flexible = false,
-        IntentOutcome outcome = IntentOutcome.Prospect) =>
+        RelationshipOutcome outcome = RelationshipOutcome.Prospect) =>
         new(Guid.NewGuid(), gender, age, cityId ?? Bangalore, interestedIn, minAge, maxAge, flexible, outcome);
 
     [Fact]
@@ -125,7 +125,7 @@ public class HardFiltersTests
     [Fact]
     public void Intent_MatchesOnlyTheExactOutcome()
     {
-        var outcomes = Enum.GetValues<IntentOutcome>();
+        var outcomes = Enum.GetValues<RelationshipOutcome>();
         var passing = 0;
 
         foreach (var mine in outcomes)
@@ -154,23 +154,74 @@ public class HardFiltersTests
     public void SameTrack_DoesNotMatchAcrossDifferentOutcomes()
     {
         Assert.Equal(
-            PreferenceRules.TrackFor(IntentOutcome.Platonic),
-            PreferenceRules.TrackFor(IntentOutcome.Spontaneous));
+            PreferenceRules.TrackFor(RelationshipOutcome.Platonic),
+            PreferenceRules.TrackFor(RelationshipOutcome.Spontaneous));
 
         var result = HardFilters.Evaluate(
-            Person(Gender.Female, outcome: IntentOutcome.Platonic),
-            Person(Gender.Male, outcome: IntentOutcome.Spontaneous));
+            Person(Gender.Female, outcome: RelationshipOutcome.Platonic),
+            Person(Gender.Male, outcome: RelationshipOutcome.Spontaneous));
 
         Assert.False(result.Passes);
     }
 
     [Theory]
-    [InlineData(IntentOutcome.Platonic, RelationshipTrack.Fluid)]
-    [InlineData(IntentOutcome.Spontaneous, RelationshipTrack.Fluid)]
-    [InlineData(IntentOutcome.Prospect, RelationshipTrack.Intent)]
-    [InlineData(IntentOutcome.Legacy, RelationshipTrack.Intent)]
-    public void TrackIsDerivedFromOutcome(IntentOutcome outcome, RelationshipTrack expected) =>
+    [InlineData(RelationshipOutcome.Platonic, RelationshipTrack.Fluid)]
+    [InlineData(RelationshipOutcome.Spontaneous, RelationshipTrack.Fluid)]
+    [InlineData(RelationshipOutcome.Prospect, RelationshipTrack.Intent)]
+    [InlineData(RelationshipOutcome.Legacy, RelationshipTrack.Intent)]
+    public void TrackFor_MapsEachOutcomeToItsOwningTrack(RelationshipOutcome outcome, RelationshipTrack expected) =>
         Assert.Equal(expected, PreferenceRules.TrackFor(outcome));
+
+    // ---------- open upper end ----------
+
+    /// <summary>
+    /// The reason the open end exists: with a closed ceiling of 45 (+2 flexible) nobody could
+    /// express interest in a member of 48, so they passed every filter but the age one and were
+    /// guaranteed zero introductions.
+    /// </summary>
+    [Theory]
+    [InlineData(46)]
+    [InlineData(52)]
+    [InlineData(80)]
+    public void OpenUpperEnd_AcceptsAnyoneAboveTheOldCeiling(int otherAge) =>
+        Assert.True(HardFilters.AgeAccepts(Person(maxAge: null), otherAge));
+
+    [Fact]
+    public void ClosedUpperEnd_StillRejectsAboveTheCeiling() =>
+        Assert.False(HardFilters.AgeAccepts(Person(maxAge: 45), 48));
+
+    /// <summary>An open upper end is not an open range — the lower end still applies.</summary>
+    [Fact]
+    public void OpenUpperEnd_StillEnforcesMinAge()
+    {
+        Assert.False(HardFilters.AgeAccepts(Person(minAge: 30, maxAge: null), 24));
+        Assert.True(HardFilters.AgeAccepts(Person(minAge: 30, maxAge: null), 30));
+        // Flexibility widens the lower end as usual; there is nothing above to widen.
+        Assert.True(HardFilters.AgeAccepts(Person(minAge: 30, maxAge: null, flexible: true), 28));
+    }
+
+    /// <summary>
+    /// Reciprocity is unchanged: one side opening its upper end does not let it match someone
+    /// whose own range excludes it.
+    /// </summary>
+    [Fact]
+    public void OpenUpperEnd_IsStillReciprocal()
+    {
+        var older = Person(gender: Gender.Male, age: 52, minAge: 18, maxAge: null);
+        var younger = Person(gender: Gender.Female, age: 28, minAge: 24, maxAge: 32);
+
+        var result = HardFilters.Evaluate(older, younger);
+
+        Assert.False(result.Passes);
+        Assert.Contains(HardFilterReasons.AgeNotReciprocal, result.Reasons);
+
+        // Both open at the top, and each inside the other's floor — now it passes.
+        var pair = HardFilters.Evaluate(
+            Person(gender: Gender.Male, age: 52, minAge: 18, maxAge: null),
+            Person(gender: Gender.Female, age: 49, minAge: 18, maxAge: null));
+
+        Assert.True(pair.Passes);
+    }
 
     // ---------- reporting ----------
 
@@ -179,9 +230,9 @@ public class HardFiltersTests
     public void EveryFailingFilter_IsReported()
     {
         var a = Person(Gender.Female, age: 28, cityId: Bangalore,
-            interestedIn: InterestedIn.Female, minAge: 24, maxAge: 30, outcome: IntentOutcome.Platonic);
+            interestedIn: InterestedIn.Female, minAge: 24, maxAge: 30, outcome: RelationshipOutcome.Platonic);
         var b = Person(Gender.Male, age: 44, cityId: Delhi,
-            interestedIn: InterestedIn.Male, minAge: 40, maxAge: 45, outcome: IntentOutcome.Legacy);
+            interestedIn: InterestedIn.Male, minAge: 40, maxAge: 45, outcome: RelationshipOutcome.Legacy);
 
         var result = HardFilters.Evaluate(a, b);
 

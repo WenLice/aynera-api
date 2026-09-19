@@ -116,12 +116,17 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
                 .HasConversion<string>()
                 .HasMaxLength(32)
                 .IsRequired();
-            entity.Property(x => x.IntentOutcome)
+            entity.Property(x => x.Track)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(x => x.Outcome)
                 .HasConversion<string>()
                 .HasMaxLength(32)
                 .IsRequired();
             entity.Property(x => x.MinAge).IsRequired();
-            entity.Property(x => x.MaxAge).IsRequired();
+            // Nullable on purpose: null is an open upper end, not a missing answer.
+            entity.Property(x => x.MaxAge);
             entity.Property(x => x.AgeIsFlexible).IsRequired();
             entity.Property(x => x.CreatedAtUtc).IsRequired();
             entity.HasIndex(x => x.IsDeleted);

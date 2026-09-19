@@ -12,9 +12,10 @@ public sealed record MatchCandidate(
     Guid CityId,
     InterestedIn InterestedIn,
     int MinAge,
-    int MaxAge,
+    /// <summary>Null means an open upper end — the member will meet anyone at or above MinAge.</summary>
+    int? MaxAge,
     bool AgeIsFlexible,
-    IntentOutcome IntentOutcome);
+    RelationshipOutcome Outcome);
 
 /// <summary>Why a pair was removed. One code per filter, so §6.2 analytics can tell them apart.</summary>
 public static class HardFilterReasons
@@ -66,8 +67,10 @@ public static class HardFilters
             reasons.Add(HardFilterReasons.DifferentCity);
         }
 
-        // Exact outcome: Platonic meets only Platonic, Legacy only Legacy.
-        if (a.IntentOutcome != b.IntentOutcome)
+        // Exact outcome: Platonic meets only Platonic, Legacy only Legacy. Comparing outcomes
+        // rather than tracks is deliberate — two Fluid members wanting different things are not
+        // a match, so the stored track is never the thing filtered on.
+        if (a.Outcome != b.Outcome)
         {
             reasons.Add(HardFilterReasons.IntentNotCompatible);
         }
@@ -75,10 +78,22 @@ public static class HardFilters
         return new HardFilterResult(reasons.Count == 0, reasons);
     }
 
-    /// <summary>The member's stated range, widened at both ends when they marked it flexible.</summary>
+    /// <summary>
+    /// The member's stated range, widened at both ends when they marked it flexible. A null
+    /// <see cref="MatchCandidate.MaxAge"/> is an open upper end — "45 and older" — which exists so
+    /// that members above the slider's ceiling are reachable at all; before it, anyone over
+    /// <see cref="PreferenceRules.AgeMax"/> plus flexibility passed nobody's filter and was
+    /// guaranteed zero introductions. Flexibility has nothing to widen on an open end.
+    /// </summary>
     public static bool AgeAccepts(MatchCandidate side, int otherAge)
     {
         var slack = side.AgeIsFlexible ? PreferenceRules.FlexibleYears : 0;
-        return otherAge >= side.MinAge - slack && otherAge <= side.MaxAge + slack;
+
+        if (otherAge < side.MinAge - slack)
+        {
+            return false;
+        }
+
+        return side.MaxAge is null || otherAge <= side.MaxAge.Value + slack;
     }
 }

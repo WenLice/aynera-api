@@ -19,13 +19,21 @@ public sealed class MemberPreferences : ISoftDeletable
     public InterestedIn InterestedIn { get; set; }
 
     public int MinAge { get; set; }
-    public int MaxAge { get; set; }
+    /// <summary>Null is an open upper end — see HardFilters.AgeAccepts.</summary>
+    public int? MaxAge { get; set; }
 
     /// <summary>Widens the range by two years at each end when the pair is evaluated.</summary>
     public bool AgeIsFlexible { get; set; }
 
-    /// <summary>The track is implied by this, never stored alongside it.</summary>
-    public IntentOutcome IntentOutcome { get; set; }
+    /// <summary>
+    /// The track the member chose first. Stored rather than derived so the two-stage choice is
+    /// recorded as made, but the write path validates it against <see cref="Outcome"/>, so the
+    /// pair can never disagree. Matching filters on the outcome, never on this.
+    /// </summary>
+    public RelationshipTrack Track { get; set; }
+
+    /// <summary>The child of <see cref="Track"/> that the member picked.</summary>
+    public RelationshipOutcome Outcome { get; set; }
 
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAtUtc { get; set; }

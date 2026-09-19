@@ -53,7 +53,8 @@ public sealed class MemberPreferencesEndpointsTests(AuthApiFactory factory)
             InterestedIn.Everyone,
             26,
             34,
-            IntentOutcome.Legacy,
+            RelationshipTrack.Intent,
+            RelationshipOutcome.Legacy,
             AgeIsFlexible: true));
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
 
@@ -62,12 +63,91 @@ public sealed class MemberPreferencesEndpointsTests(AuthApiFactory factory)
         Assert.Equal(26, dto.MinAge);
         Assert.Equal(34, dto.MaxAge);
         Assert.True(dto.AgeIsFlexible);
-        Assert.Equal("Legacy", dto.IntentOutcome);
-        // The track is derived from the outcome, never sent.
-        Assert.Equal("Intent", dto.RelationshipTrack);
+        Assert.Equal("Legacy", dto.Outcome);
+        Assert.Equal("Intent", dto.Track);
 
         var after = (await Body<MemberPreferencesDto?>(await client.GetAsync("/preferences/me")))!.Data!;
-        Assert.Equal("Legacy", after.IntentOutcome);
+        Assert.Equal("Legacy", after.Outcome);
+        Assert.Equal("Intent", after.Track);
+    }
+
+    /// <summary>
+    /// The track is stored, so the pair has to be checked on the way in — otherwise a row could
+    /// claim a Fluid member whose outcome belongs to Intent.
+    /// </summary>
+    [Theory]
+    [InlineData(RelationshipTrack.Fluid, RelationshipOutcome.Prospect)]
+    [InlineData(RelationshipTrack.Fluid, RelationshipOutcome.Legacy)]
+    [InlineData(RelationshipTrack.Intent, RelationshipOutcome.Platonic)]
+    [InlineData(RelationshipTrack.Intent, RelationshipOutcome.Spontaneous)]
+    public async Task TrackThatDoesNotOwnTheOutcome_IsRefused(
+        RelationshipTrack track,
+        RelationshipOutcome outcome)
+    {
+        var client = await SignedInClientAsync();
+
+        var response = await client.PutAsJsonAsync("/preferences/me", new UpdateMemberPreferencesRequest(
+            InterestedIn.Everyone, 24, 32, track, outcome));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("validation_failed", (await Body<object?>(response))!.ErrorCode);
+
+        // Nothing was written: the refusal happens before the upsert.
+        var after = await Body<MemberPreferencesDto?>(await client.GetAsync("/preferences/me"));
+        Assert.Null(after!.Data);
+    }
+
+    /// <summary>
+    /// A null maxAge is an open upper end, not a missing field — it must survive the round trip,
+    /// because it is the only way a member above the slider's ceiling becomes reachable.
+    /// </summary>
+    [Fact]
+    public async Task NullMaxAge_IsStoredAndReadBackAsOpen()
+    {
+        var client = await SignedInClientAsync();
+
+        var saved = await client.PutAsJsonAsync("/preferences/me", new UpdateMemberPreferencesRequest(
+            InterestedIn.Everyone, 30, null, RelationshipTrack.Intent, RelationshipOutcome.Legacy));
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Null((await Body<MemberPreferencesDto>(saved))!.Data!.MaxAge);
+
+        var after = (await Body<MemberPreferencesDto?>(await client.GetAsync("/preferences/me")))!.Data!;
+        Assert.Null(after.MaxAge);
+        Assert.Equal(30, after.MinAge);
+    }
+
+    /// <summary>The floor still applies when the ceiling is open.</summary>
+    [Fact]
+    public async Task NullMaxAge_StillValidatesMinAge()
+    {
+        var client = await SignedInClientAsync();
+
+        var response = await client.PutAsJsonAsync("/preferences/me", new UpdateMemberPreferencesRequest(
+            InterestedIn.Everyone, 17, null, RelationshipTrack.Intent, RelationshipOutcome.Legacy));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("validation_failed", (await Body<object?>(response))!.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData(RelationshipTrack.Fluid, RelationshipOutcome.Platonic)]
+    [InlineData(RelationshipTrack.Fluid, RelationshipOutcome.Spontaneous)]
+    [InlineData(RelationshipTrack.Intent, RelationshipOutcome.Prospect)]
+    [InlineData(RelationshipTrack.Intent, RelationshipOutcome.Legacy)]
+    public async Task EveryTrackOwningItsOutcome_IsAccepted(
+        RelationshipTrack track,
+        RelationshipOutcome outcome)
+    {
+        var client = await SignedInClientAsync();
+
+        var response = await client.PutAsJsonAsync("/preferences/me", new UpdateMemberPreferencesRequest(
+            InterestedIn.Everyone, 24, 32, track, outcome));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = (await Body<MemberPreferencesDto>(response))!.Data!;
+        Assert.Equal(track.ToString(), dto.Track);
+        Assert.Equal(outcome.ToString(), dto.Outcome);
     }
 
     [Fact]
@@ -76,17 +156,19 @@ public sealed class MemberPreferencesEndpointsTests(AuthApiFactory factory)
         var client = await SignedInClientAsync();
 
         await client.PutAsJsonAsync("/preferences/me", new UpdateMemberPreferencesRequest(
-            InterestedIn.Male, 24, 32, IntentOutcome.Platonic, AgeIsFlexible: true));
+            InterestedIn.Male, 24, 32, RelationshipTrack.Fluid, RelationshipOutcome.Platonic,
+            AgeIsFlexible: true));
 
         var second = await client.PutAsJsonAsync("/preferences/me", new UpdateMemberPreferencesRequest(
-            InterestedIn.Female, 30, 40, IntentOutcome.Prospect));
+            InterestedIn.Female, 30, 40, RelationshipTrack.Intent, RelationshipOutcome.Prospect));
 
         var dto = (await Body<MemberPreferencesDto>(second))!.Data!;
         Assert.Equal("Female", dto.InterestedIn);
         Assert.Equal(30, dto.MinAge);
         Assert.False(dto.AgeIsFlexible);
-        Assert.Equal("Fluid", PreferencesTrackOf("Platonic"));
-        Assert.Equal("Intent", dto.RelationshipTrack);
+        // The replace moved the member across tracks, not just outcomes.
+        Assert.Equal("Intent", dto.Track);
+        Assert.Equal("Prospect", dto.Outcome);
     }
 
     [Theory]
@@ -98,7 +180,7 @@ public sealed class MemberPreferencesEndpointsTests(AuthApiFactory factory)
         var client = await SignedInClientAsync();
 
         var response = await client.PutAsJsonAsync("/preferences/me", new UpdateMemberPreferencesRequest(
-            InterestedIn.Everyone, minAge, maxAge, IntentOutcome.Prospect));
+            InterestedIn.Everyone, minAge, maxAge, RelationshipTrack.Intent, RelationshipOutcome.Prospect));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("validation_failed", (await Body<object?>(response))!.ErrorCode);
@@ -110,13 +192,8 @@ public sealed class MemberPreferencesEndpointsTests(AuthApiFactory factory)
         var client = factory.CreateClient();
 
         var response = await client.PutAsJsonAsync("/preferences/me", new UpdateMemberPreferencesRequest(
-            InterestedIn.Everyone, 24, 32, IntentOutcome.Prospect));
+            InterestedIn.Everyone, 24, 32, RelationshipTrack.Intent, RelationshipOutcome.Prospect));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
-
-    private static string PreferencesTrackOf(string outcome) =>
-        Domain.Preferences.Validators.PreferenceRules
-            .TrackFor(Enum.Parse<IntentOutcome>(outcome))
-            .ToString();
 }

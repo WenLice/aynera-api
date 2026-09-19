@@ -28,8 +28,13 @@ public static class PreferenceRules
     public static bool Accepts(InterestedIn interestedIn, Gender gender) =>
         GendersFor(interestedIn).Contains(gender);
 
-    public static RelationshipTrack TrackFor(IntentOutcome outcome) =>
-        outcome is IntentOutcome.Platonic or IntentOutcome.Spontaneous
+    /// <summary>
+    /// The track an intention belongs to. Still the single source of truth even though the track
+    /// is now stored: the write path validates the submitted track against this, so a stored pair
+    /// can never disagree.
+    /// </summary>
+    public static RelationshipTrack TrackFor(RelationshipOutcome outcome) =>
+        outcome is RelationshipOutcome.Platonic or RelationshipOutcome.Spontaneous
             ? RelationshipTrack.Fluid
             : RelationshipTrack.Intent;
 }
