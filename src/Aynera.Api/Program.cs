@@ -83,6 +83,13 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SwaggerDoc(ApiAudience.All, new OpenApiInfo
+    {
+        Title = "Aynera API (all endpoints)",
+        Version = "v1",
+        Description = "Every endpoint, member and staff, in one document for browsing and manual testing. "
+            + "Staff endpoints still require an admin token (aud=admin); see the Admin API document for that set alone."
+    });
     options.SwaggerDoc(ApiAudience.Member, new OpenApiInfo
     {
         Title = "Aynera Member API",
@@ -95,7 +102,7 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description = "Staff endpoints for the admin panel. Admin tokens carry aud=admin; member tokens are refused."
     });
-    options.DocInclusionPredicate((docName, api) => ApiAudience.Of(api) == docName);
+    options.DocInclusionPredicate(ApiAudience.IncludedIn);
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -191,6 +198,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
+        options.SwaggerEndpoint($"/swagger/{ApiAudience.All}/swagger.json", "Aynera API (all endpoints)");
         options.SwaggerEndpoint($"/swagger/{ApiAudience.Member}/swagger.json", "Aynera Member API");
         options.SwaggerEndpoint($"/swagger/{ApiAudience.Admin}/swagger.json", "Aynera Admin API");
         options.DocumentTitle = "Aynera API";

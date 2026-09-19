@@ -173,4 +173,34 @@ public sealed class ControllerRoutingTests
         Assert.Equal(ApiAudience.Admin, Audience("GET", "introduction-video/{id}/content"));
         Assert.Equal(ApiAudience.Admin, Audience("GET", "audit/events/GetAll"));
     }
+
+    [Fact]
+    public void SwaggerAllDocument_ContainsEveryEndpoint_AndAudienceDocsPartitionIt()
+    {
+        using var provider = BuildProvider();
+        var descriptions = provider.GetRequiredService<IApiDescriptionGroupCollectionProvider>()
+            .ApiDescriptionGroups.Items.SelectMany(g => g.Items).ToArray();
+        Assert.NotEmpty(descriptions);
+
+        foreach (var api in descriptions)
+        {
+            Assert.True(ApiAudience.IncludedIn(ApiAudience.All, api),
+                $"{api.HttpMethod} {api.RelativePath} is missing from the combined document.");
+
+            // Exactly one audience document must claim it: never both, never neither.
+            var claims = new[] { ApiAudience.Member, ApiAudience.Admin }
+                .Count(doc => ApiAudience.IncludedIn(doc, api));
+            Assert.True(claims == 1,
+                $"{api.HttpMethod} {api.RelativePath}: {claims} audience documents claim it, expected exactly 1.");
+        }
+
+        // The combined document is the union, so staff endpoints are browsable without switching definitions.
+        var all = descriptions.Count(api => ApiAudience.IncludedIn(ApiAudience.All, api));
+        var member = descriptions.Count(api => ApiAudience.IncludedIn(ApiAudience.Member, api));
+        var admin = descriptions.Count(api => ApiAudience.IncludedIn(ApiAudience.Admin, api));
+
+        Assert.Equal(descriptions.Length, all);
+        Assert.Equal(all, member + admin);
+        Assert.True(admin > 0, "The admin document is empty; staff endpoints would be invisible.");
+    }
 }

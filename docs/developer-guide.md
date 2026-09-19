@@ -184,7 +184,7 @@ When adding a feature (for example Profiles):
 - Clients should send / receive **`X-Correlation-Id`** (middleware generates one if missing).
 
 Full endpoint list: [api-reference.md](./api-reference.md).  
-Interactive docs (Development): Swagger UI at `/swagger`, split into **Member API** and **Admin API** documents (dropdown, top right). Membership is derived from each action's authorization policy in `Aynera.Api/OpenApi/ApiAudience.cs`; anonymous admin-login actions opt into the Admin doc with `[ApiExplorerSettings(GroupName = ApiAudience.Admin)]`.
+Interactive docs (Development): Swagger UI at `/swagger`, serving three documents (dropdown, top right). **Aynera API (all endpoints)** is the default and holds everything, so staff endpoints are visible without switching definitions; **Member API** and **Admin API** are the per-audience views. Audience is derived from each action's authorization policy in `Aynera.Api/OpenApi/ApiAudience.cs` (`Of`); anonymous admin-login actions opt into the Admin doc with `[ApiExplorerSettings(GroupName = ApiAudience.Admin)]`. `ApiAudience.IncludedIn` is the document-inclusion rule and is guarded by `ControllerRoutingTests`. Visibility is not access: every document shows the same `Bearer` requirement, and an admin endpoint listed in the combined document still refuses a member token.
 
 Routing convention: every route begins with its controller's `[Route]` prefix. There are no `admin/*` or `public/*` URL prefixes — authorization is entirely by policy, and `ControllerRoutingTests` enforces both rules.
 
