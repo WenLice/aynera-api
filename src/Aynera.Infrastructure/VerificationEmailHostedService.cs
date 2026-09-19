@@ -23,7 +23,14 @@ public sealed class VerificationEmailHostedService(IServiceScopeFactory scopes,
             {
                 logger.LogError("Verification queue processing failed: {ErrorType}", ex.GetType().Name);
             }
-            if (!await timer.WaitForNextTickAsync(stoppingToken)) break;
+            // The service spends nearly all its time here, so this is where shutdown almost always lands.
+            // Cancellation during the wait is an ordinary stop, not a fault: swallow it so ExecuteAsync
+            // completes instead of surfacing OperationCanceledException to the host.
+            try
+            {
+                if (!await timer.WaitForNextTickAsync(stoppingToken)) break;
+            }
+            catch (OperationCanceledException) { break; }
         }
     }
 }
