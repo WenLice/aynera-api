@@ -1,0 +1,44 @@
+# Render blueprint for the Aynera API.
+#
+# `main` is the release branch: day-to-day work happens on `dev` and is merged here
+# when it should go live. Render auto-deploys on every push to this branch.
+#
+# The database is NOT declared here on purpose. Render's free PostgreSQL is deleted
+# 30 days after creation, which would take the early-access waitlist with it, so the
+# connection string points at an external free Postgres (Neon or Supabase) and is set
+# in the dashboard rather than committed.
+#
+# Redis is also absent on purpose: `Aynera:UseInMemoryOtpStore` defaults to true, so a
+# single instance runs without it. Add Redis before running more than one instance —
+# in-memory OTP challenges are per-process, so a second instance would fail to verify
+# codes issued by the first.
+services:
+  - type: web
+    name: aynera-api
+    runtime: docker
+    plan: free
+    branch: main
+    region: singapore
+    dockerfilePath: ./src/Dockerfile
+    dockerContext: ./src
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # The port is left to the Dockerfile, which binds 8080 and EXPOSEs it; Render
+      # detects that. Overriding ASPNETCORE_URLS here would only risk disagreeing with it.
+      #
+      # External Postgres. Set in the dashboard; never commit a connection string.
+      - key: ConnectionStrings__Aynera
+        sync: false
+      # REQUIRED. appsettings.json ships a "CHANGE_ME_TO_A_LONG_RANDOM_SECRET_KEY_32+"
+      # placeholder, so deploying without this would sign every token with a value that
+      # is public in the repository. Generate 32+ random characters; changing it later
+      # invalidates every existing session.
+      - key: Aynera__Jwt__SigningKey
+        sync: false
+      # First admin, created only when no admin exists yet. Leave unset to skip seeding.
+      - key: Aynera__AdminSeed__Email
+        sync: false
+      - key: Aynera__AdminSeed__Password
+        sync: false
