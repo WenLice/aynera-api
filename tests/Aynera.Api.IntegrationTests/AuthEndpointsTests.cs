@@ -314,7 +314,8 @@ public class AuthEndpointsTests
             Gender.Male,
             DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-16)),
             "Bangalore",
-            "kid@example.com");
+            "kid@example.com",
+            Hometown: "Pune");
 
         var response = await client.PostAsJsonAsync("/members/register", body);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);

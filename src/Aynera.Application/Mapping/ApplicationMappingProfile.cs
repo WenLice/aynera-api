@@ -26,9 +26,9 @@ public sealed class ApplicationMappingProfile : Profile
                 src.DateOfBirth,
                 src.City,
                 src.CityId,
+                src.Hometown,
                 src.Nickname,
                 src.HeightCm,
-                src.Hometown,
                 src.Work,
                 src.Religion,
                 src.GenderIsPublic))

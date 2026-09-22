@@ -82,7 +82,7 @@ public sealed class AccountDeactivationConsistencyTests(AuthApiFactory factory)
         using var scope = factory.Services.CreateScope();
         var request = new CreateMemberRequest("9" + Random.Shared.NextInt64(100_000_000, 999_999_999),
             "Ada Lovelace", Gender.Female, new DateOnly(1990, 5, 15), "Bangalore",
-            $"deactivation-{Guid.NewGuid():N}@example.com", Password: "secret12");
+            $"deactivation-{Guid.NewGuid():N}@example.com", Hometown: "Pune", Password: "secret12");
         var account = await scope.ServiceProvider.GetRequiredService<IRegistrationService>().RegisterAsync(request, CancellationToken.None);
         var db = scope.ServiceProvider.GetRequiredService<AyneraDbContext>();
         for (var device = 0; device < 2; device++)

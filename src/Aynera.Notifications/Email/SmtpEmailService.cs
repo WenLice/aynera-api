@@ -111,9 +111,14 @@ public sealed class SmtpEmailService : IEmailService
         message.Body = new TextPart("plain") { Text = body };
 
         using var client = new SmtpClient();
+        // TLS Wrapper listens on 465 and 2465 and expects TLS from the first byte; every other
+        // encrypted port negotiates with STARTTLS. Picking the wrong one does not degrade — the
+        // connection simply hangs or is refused.
         var secure =
             _options.SmtpUseSsl
-                ? (_options.SmtpPort == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)
+                ? (_options.SmtpPort is 465 or 2465
+                    ? SecureSocketOptions.SslOnConnect
+                    : SecureSocketOptions.StartTls)
                 : SecureSocketOptions.None;
 
         await client.ConnectAsync(_options.SmtpHost.Trim(), _options.SmtpPort, secure, cancellationToken);

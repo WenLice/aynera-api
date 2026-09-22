@@ -44,7 +44,7 @@ public sealed class MemberPreferencesRepository : IMemberPreferencesRepository
         {
             throw new AuthException(
                 "invalid_interested_in",
-                "Interested in must be Male, Female, Other, or Everyone.");
+                "Interested in must be Male, Female, ThirdGender, or Everyone.");
         }
 
         if (!Enum.TryParse<RelationshipOutcome>(preferences.Outcome, ignoreCase: true, out var outcome))

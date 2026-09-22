@@ -16,8 +16,9 @@ public class UpdateMemberProfileRequestValidatorTests
         string? nickname = null,
         DateOnly? dateOfBirth = null,
         int? heightCm = null,
-        string city = "Delhi") =>
-        new(name, Gender.Female, dateOfBirth ?? Adult, city, nickname, heightCm);
+        string city = "Delhi",
+        string? hometown = "Pune") =>
+        new(name, Gender.Female, dateOfBirth ?? Adult, city, nickname, heightCm, hometown);
 
     [Fact]
     public void MinimalRequest_IsValid() =>
@@ -28,7 +29,7 @@ public class UpdateMemberProfileRequestValidatorTests
     {
         var request = new UpdateMemberProfileRequest(
             "Ada",
-            Gender.Other,
+            Gender.ThirdGender,
             Adult,
             "Bangalore",
             Nickname: "Adz",
@@ -55,6 +56,19 @@ public class UpdateMemberProfileRequestValidatorTests
     [Fact]
     public void Nickname_Omitted_IsValid() =>
         Assert.True(Validator.Validate(Valid(nickname: null)).IsValid);
+
+    /// <summary>
+    /// Hometown has its own page in the app's registration, so a profile without one is not a
+    /// shape the product allows. Blank counts as missing — it is free text, not a flag.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Hometown_IsRequired(string? hometown) =>
+        Assert.Contains(
+            Validator.Validate(Valid(hometown: hometown)).Errors,
+            e => e.PropertyName == nameof(UpdateMemberProfileRequest.Hometown));
 
     [Fact]
     public void Nickname_TooShort_IsRejected() =>

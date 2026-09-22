@@ -31,7 +31,7 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         _logger.LogDebug("MemberProfile CreateAsync user {UserId}", profile.UserId);
         if (!Enum.TryParse<Gender>(profile.Gender, ignoreCase: true, out var gender))
         {
-            throw new AuthException("invalid_gender", "Gender must be Male, Female, Other, or PreferNotToSay.");
+            throw new AuthException("invalid_gender", "Gender must be Male, Female, ThirdGender, or PreferNotToSay.");
         }
 
         var entity = _mapper.Map<MemberProfile>(profile);
@@ -49,7 +49,7 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         _logger.LogDebug("MemberProfile UpsertAsync user {UserId}", profile.UserId);
         if (!Enum.TryParse<Gender>(profile.Gender, ignoreCase: true, out var gender))
         {
-            throw new AuthException("invalid_gender", "Gender must be Male, Female, Other, or PreferNotToSay.");
+            throw new AuthException("invalid_gender", "Gender must be Male, Female, ThirdGender, or PreferNotToSay.");
         }
 
         var existing = await _db.MemberProfiles
@@ -68,7 +68,7 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         existing.City = profile.City.Trim();
         existing.CityId = profile.CityId;
         existing.HeightCm = profile.HeightCm;
-        existing.Hometown = Normalize(profile.Hometown);
+        existing.Hometown = profile.Hometown.Trim();
         existing.Work = Normalize(profile.Work);
         existing.Religion = Normalize(profile.Religion);
         existing.UpdatedAtUtc = DateTimeOffset.UtcNow;

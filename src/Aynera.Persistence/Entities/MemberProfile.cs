@@ -42,8 +42,8 @@ public sealed class MemberProfile : ISoftDeletable
     /// <summary>Whole centimetres. Optional — the app's basics step is skippable.</summary>
     public int? HeightCm { get; set; }
 
-    /// <summary>Where the member is from, as free text. Optional.</summary>
-    public string? Hometown { get; set; }
+    /// <summary>Where the member is from, as free text. Required — the app asks for it on the birth step.</summary>
+    public string Hometown { get; set; } = string.Empty;
 
     /// <summary>What the member does with their days, as free text. Optional.</summary>
     public string? Work { get; set; }

@@ -10,7 +10,7 @@ public enum Gender
     Female = 1,
 
     /// <summary>Third gender / transgender — the app offers it under that label.</summary>
-    Other = 2,
+    ThirdGender = 2,
 
     /// <summary>
     /// Legacy. "Prefer not to say" is about display, not identity, so it is now

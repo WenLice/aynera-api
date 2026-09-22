@@ -38,9 +38,9 @@ public sealed class InfrastructureMappingProfile : Profile
                 src.DateOfBirth,
                 src.City,
                 src.CityId,
+                src.Hometown,
                 src.Nickname,
                 src.HeightCm,
-                src.Hometown,
                 src.Work,
                 src.Religion,
                 src.GenderIsPublic))
@@ -55,9 +55,7 @@ public sealed class InfrastructureMappingProfile : Profile
             .ForMember(
                 d => d.Nickname,
                 o => o.MapFrom(s => string.IsNullOrWhiteSpace(s.Nickname) ? null : s.Nickname.Trim()))
-            .ForMember(
-                d => d.Hometown,
-                o => o.MapFrom(s => string.IsNullOrWhiteSpace(s.Hometown) ? null : s.Hometown.Trim()))
+            .ForMember(d => d.Hometown, o => o.MapFrom(s => s.Hometown.Trim()))
             .ForMember(
                 d => d.Work,
                 o => o.MapFrom(s => string.IsNullOrWhiteSpace(s.Work) ? null : s.Work.Trim()))

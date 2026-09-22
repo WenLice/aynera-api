@@ -33,8 +33,8 @@ public class HardFiltersTests
     [Theory]
     [InlineData(Gender.Female, InterestedIn.Male, Gender.Male, InterestedIn.Female)]
     [InlineData(Gender.Female, InterestedIn.Male, Gender.Male, InterestedIn.Male)]
-    [InlineData(Gender.Other, InterestedIn.Everyone, Gender.Male, InterestedIn.Other)]
-    [InlineData(Gender.Other, InterestedIn.Female, Gender.Male, InterestedIn.Everyone)]
+    [InlineData(Gender.ThirdGender, InterestedIn.Everyone, Gender.Male, InterestedIn.ThirdGender)]
+    [InlineData(Gender.ThirdGender, InterestedIn.Female, Gender.Male, InterestedIn.Everyone)]
     public void Evaluation_IsSymmetric(Gender aGender, InterestedIn aWants, Gender bGender, InterestedIn bWants)
     {
         var a = Person(aGender, interestedIn: aWants);
@@ -48,13 +48,13 @@ public class HardFiltersTests
     [Theory]
     [InlineData(InterestedIn.Male, Gender.Male, true)]
     [InlineData(InterestedIn.Male, Gender.Female, false)]
-    [InlineData(InterestedIn.Male, Gender.Other, false)]
+    [InlineData(InterestedIn.Male, Gender.ThirdGender, false)]
     [InlineData(InterestedIn.Female, Gender.Female, true)]
-    [InlineData(InterestedIn.Other, Gender.Other, true)]
-    [InlineData(InterestedIn.Other, Gender.Male, false)]
+    [InlineData(InterestedIn.ThirdGender, Gender.ThirdGender, true)]
+    [InlineData(InterestedIn.ThirdGender, Gender.Male, false)]
     [InlineData(InterestedIn.Everyone, Gender.Male, true)]
     [InlineData(InterestedIn.Everyone, Gender.Female, true)]
-    [InlineData(InterestedIn.Everyone, Gender.Other, true)]
+    [InlineData(InterestedIn.Everyone, Gender.ThirdGender, true)]
     public void Everyone_CoversAllThreeGenders(InterestedIn wants, Gender gender, bool expected) =>
         Assert.Equal(expected, PreferenceRules.Accepts(wants, gender));
 
@@ -75,9 +75,9 @@ public class HardFiltersTests
     [Fact]
     public void ThirdGender_IsReachable()
     {
-        var them = Person(Gender.Other, interestedIn: InterestedIn.Everyone);
+        var them = Person(Gender.ThirdGender, interestedIn: InterestedIn.Everyone);
 
-        Assert.True(HardFilters.Evaluate(Person(Gender.Male, interestedIn: InterestedIn.Other), them).Passes);
+        Assert.True(HardFilters.Evaluate(Person(Gender.Male, interestedIn: InterestedIn.ThirdGender), them).Passes);
         Assert.True(HardFilters.Evaluate(Person(Gender.Male, interestedIn: InterestedIn.Everyone), them).Passes);
     }
 

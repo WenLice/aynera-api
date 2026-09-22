@@ -151,14 +151,14 @@ See conventions above.
 |-----------|------|----------|--------------------|
 | `phone` | `string` | Yes | Required; valid Indian mobile. Normalized to E.164 `+91…` |
 | `name` | `string` | Yes | Max 150. The member's own name — a first name or a full name, their choice |
-| `gender` | `string` | Yes | `Male` \| `Female` \| `Other` (third gender / transgender). `PreferNotToSay` is legacy — use `genderIsPublic` |
+| `gender` | `string` | Yes | `Male` \| `Female` \| `ThirdGender` (shown as "Third Gender / Transgender"). `PreferNotToSay` is legacy — use `genderIsPublic` |
 | `genderIsPublic` | `boolean` | No | Defaults `true`. `false` is "prefer not to say": the gender is hidden on the profile but still used for reciprocal matching |
 | `dateOfBirth` | `date` | Yes | ISO date; must be 18+ (`underage` if not) |
 | `city` | `string` | Yes | Max 100; must match an **active catalog city** by name, case-insensitive (`GET /early-access/cities/GetAll`). The canonical name and its `cityId` are stored; otherwise `city_not_supported` |
 | `email` | `string` | Yes | Required; valid email |
+| `hometown` | `string` | Yes | Max 100. Where the member is from, as free text |
 | `nickname` | `string` or `null` | No | Max 100. What strangers see before a mutual match |
 | `heightCm` | `integer` or `null` | No | 120–250 |
-| `hometown` | `string` or `null` | No | Max 100 |
 | `work` | `string` or `null` | No | Max 200 |
 | `religion` | `string` or `null` | No | Max 100 |
 | `password` | `string` or `null` | No | Optional; min 8 chars with a lowercase letter and a number. Enables `POST /auth/password` immediately. |
@@ -170,13 +170,13 @@ Body of `PUT /members/me/profile`. A **full replace**: omitted optional fields a
 | Attribute | Type | Required | Validation / notes |
 |-----------|------|----------|--------------------|
 | `name` | `string` | Yes | Max 150. A first name or a full name, the member's choice |
-| `gender` | `string` | Yes | `Male` \| `Female` \| `Other` (third gender / transgender). `PreferNotToSay` is legacy — use `genderIsPublic` |
+| `gender` | `string` | Yes | `Male` \| `Female` \| `ThirdGender` (shown as "Third Gender / Transgender"). `PreferNotToSay` is legacy — use `genderIsPublic` |
 | `genderIsPublic` | `boolean` | No | Defaults `true`. `false` is "prefer not to say": the gender is hidden on the profile but still used for reciprocal matching |
 | `dateOfBirth` | `date` | Yes | ISO date; must be 18+ (`underage` if not) |
 | `city` | `string` | Yes | Max 100; resolved against the active catalog like registration, else `city_not_supported` |
+| `hometown` | `string` | Yes | Max 100. Required, so a full replace must restate it |
 | `nickname` | `string` or `null` | No | 2–100 characters. Omitted means strangers see the first letter of `name` |
 | `heightCm` | `integer` or `null` | No | 120–250 |
-| `hometown` | `string` or `null` | No | Max 100 |
 | `work` | `string` or `null` | No | Max 200 |
 | `religion` | `string` or `null` | No | Max 100 |
 
@@ -190,9 +190,9 @@ Body of `PUT /members/me/profile`. A **full replace**: omitted optional fields a
 | `dateOfBirth` | `date` | |
 | `city` | `string` | Canonical catalog name |
 | `cityId` | `guid` | Shared city-catalog id (same key as `Venue.cityId`); every member has exactly one |
+| `hometown` | `string` | Always present |
 | `nickname` | `string` or `null` | Shown to strangers before a mutual match; null means the first letter of `name` |
 | `heightCm` | `integer` or `null` | |
-| `hometown` | `string` or `null` | |
 | `work` | `string` or `null` | |
 | `religion` | `string` or `null` | |
 
@@ -202,7 +202,7 @@ Body of `PUT /preferences/me`. A full replace.
 
 | Field | Type | Rules |
 |-------|------|-------|
-| `interestedIn` | string | Required. `Male` \| `Female` \| `Other` \| `Everyone`. Stored as the **choice**, not the expanded gender set, so widening what `Everyone` covers carries existing rows |
+| `interestedIn` | string | Required. `Male` \| `Female` \| `ThirdGender` \| `Everyone`. Stored as the **choice**, not the expanded gender set, so widening what `Everyone` covers carries existing rows |
 | `minAge` | int | Required. 18–45 |
 | `maxAge` | int? | **Null means an open upper end** — "`minAge` and older". When sent, 18–45 and `>= minAge`. The app sends null when its slider sits at the ceiling; without this, nobody could express interest above 45 (47 with flexibility), so older members passed nobody's reciprocal age filter |
 | `track` | string | Required. `Fluid` \| `Intent` |
@@ -215,7 +215,7 @@ Body of `PUT /preferences/me`. A full replace.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `interestedIn` | string | `Male` \| `Female` \| `Other` \| `Everyone` |
+| `interestedIn` | string | `Male` \| `Female` \| `ThirdGender` \| `Everyone` |
 | `minAge` | int | The stated floor, before any flexibility is applied |
 | `maxAge` | int? | The stated ceiling, or **null for an open upper end**. Flexibility has nothing to widen on an open end |
 | `ageIsFlexible` | bool | |
@@ -365,7 +365,7 @@ Never shown to anyone but the member and staff — these are hard filters, not p
 | | |
 |--|--|
 | **Name** | Register |
-| **Purpose** | Register a member account **and** profile. Blocked if a non-deleted account exists for the phone (`isActive=true` → use existing; `isActive=false` → activate first). Soft-deleted rows (`isDeleted=true`) do **not** block; a **new** account id is created. Requires name, gender, dateOfBirth (18+), city, email; optional nickname, heightCm, hometown, work, religion. Atomically creates the account/profile and queues a verification email for retryable delivery; `emailConfirmed` stays false until VerifyEmail |
+| **Purpose** | Register a member account **and** profile. Blocked if a non-deleted account exists for the phone (`isActive=true` → use existing; `isActive=false` → activate first). Soft-deleted rows (`isDeleted=true`) do **not** block; a **new** account id is created. Requires name, gender, dateOfBirth (18+), city, email, hometown; optional nickname, heightCm, work, religion. Atomically creates the account/profile and queues a verification email for retryable delivery; `emailConfirmed` stays false until VerifyEmail |
 | **Method / path** | `POST /members/register` |
 | **Auth** | Anonymous |
 | **Tags** | Members |
@@ -1476,7 +1476,7 @@ Admission review is one input to match eligibility, never the whole of it. The *
 ## Client flow (member app)
 
 ```text
-0. POST /members/register                { phone, email, name, gender, dateOfBirth, city, nickname?, heightCm?, hometown?, work?, religion?, password? }
+0. POST /members/register                { phone, email, name, gender, dateOfBirth, city, hometown, nickname?, heightCm?, work?, religion?, password? }
    — queues verification email after account/profile commit (dev stub does not deliver mail); emailConfirmed=false until step 0b
    — optional password enables PasswordLogin immediately
 0b. Open email link → client reads ?userId=&token=

@@ -44,7 +44,7 @@ public sealed class PreferencesController : BaseController
     /// <remarks>
     /// Writes the authenticated member's matching preferences, creating them on the first save.
     /// A full replace, not a patch.
-    /// Required: interestedIn (Male|Female|Other|Everyone), minAge, maxAge (18–45, min ≤ max),
+    /// Required: interestedIn (Male|Female|ThirdGender|Everyone), minAge, maxAge (18–45, min ≤ max),
     /// track (Fluid|Intent) and outcome (Platonic|Spontaneous|Prospect|Legacy).
     /// Optional: ageIsFlexible (default false), which widens the range by two years at each end
     /// when a pair is evaluated.

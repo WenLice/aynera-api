@@ -36,8 +36,8 @@ public sealed class UpdateMemberProfileRequestValidator : AbstractValidator<Upda
             .When(x => x.HeightCm.HasValue);
 
         RuleFor(x => x.Hometown)
-            .MaximumLength(100).WithMessage("Hometown is too long.")
-            .When(x => !string.IsNullOrWhiteSpace(x.Hometown));
+            .NotEmpty().WithMessage("Hometown is required.")
+            .MaximumLength(100).WithMessage("Hometown is too long.");
 
         RuleFor(x => x.Work)
             .MaximumLength(200).WithMessage("Work is too long.")

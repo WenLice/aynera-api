@@ -67,3 +67,51 @@ services:
         sync: false
       - key: Aynera__AdminSeed__Password
         sync: false
+      # SMS. Without these the provider stays "Console", which sends nothing — and outside
+      # Development the code is not logged either, so a member requests an OTP that exists
+      # nowhere they can read it and registration cannot be completed at all.
+      #
+      # 2Factor.in is an Indian OTP route: carriers filter A2P traffic that is not registered
+      # under DLT, so a code sent from an international sender may never arrive. Set the
+      # provider to "2Factor" and supply the key; the template name can wait until a DLT
+      # template is approved, and until then 2Factor uses its own default.
+      - key: AYNERA_SMS_PROVIDER
+        sync: false
+      - key: AYNERA_2FACTOR_API_KEY
+        sync: false
+      - key: AYNERA_2FACTOR_TEMPLATE
+        sync: false
+      # Email over plain SMTP — no SDK, no provider-specific code. `SmtpEmailService` is
+      # selected whenever AYNERA_EMAIL_PROVIDER is "Smtp" and a host is set, so moving
+      # between providers is these variables and nothing else.
+      #
+      # Current provider is ZeptoMail (Zoho's transactional service, India DC):
+      #   host smtp.zeptomail.in, port 587 STARTTLS (465 is TLS Wrapper, also supported),
+      #   username the literal "emailapikey", password the Mail Agent's send-mail token.
+      # Transactional mail is deliberately kept off the wenlice.com mailbox so OTP bursts
+      # never compete with staff mail for its daily cap.
+      #
+      # Two alternatives, both drop-in: Zoho Mail SMTP (smtp.zoho.in, full address as the
+      # username, app-specific password) once the free ZeptoMail credit runs out, and Amazon
+      # SES (email-smtp.<region>.amazonaws.com) when aynera.com is owned. For SES, note the
+      # username and password are SES *SMTP credentials* from the SES console, NOT an AWS
+      # access key, and its sandbox reaches only verified recipients until production access
+      # is granted.
+      - key: AYNERA_EMAIL_PROVIDER
+        sync: false
+      - key: AYNERA_SMTP_HOST
+        sync: false
+      - key: AYNERA_SMTP_PORT
+        sync: false
+      - key: AYNERA_SMTP_USERNAME
+        sync: false
+      - key: AYNERA_SMTP_PASSWORD
+        sync: false
+      # Must be an address on the provider's verified sending domain, and it is what members
+      # see as the sender. Today: an address at wenlice.com, verified in ZeptoMail.
+      - key: AYNERA_SMTP_FROM
+        sync: false
+      # Where the verification link in a registration email points. Left unset it falls back to
+      # http://localhost:5173/verify-email — a developer's own machine.
+      - key: AYNERA_EMAIL_VERIFY_LINK_BASE_URL
+        sync: false

@@ -46,6 +46,9 @@ public static class DependencyInjection
             options.Provider = configuration["AYNERA_SMS_PROVIDER"] ?? options.Provider;
             options.TextbeltApiKey = configuration["AYNERA_TEXTBELT_API_KEY"] ?? options.TextbeltApiKey;
             options.TextbeltApiUrl = configuration["AYNERA_TEXTBELT_API_URL"] ?? options.TextbeltApiUrl;
+            options.TwoFactorApiKey = configuration["AYNERA_2FACTOR_API_KEY"] ?? options.TwoFactorApiKey;
+            options.TwoFactorTemplateName = configuration["AYNERA_2FACTOR_TEMPLATE"] ?? options.TwoFactorTemplateName;
+            options.TwoFactorOtpUrl = configuration["AYNERA_2FACTOR_OTP_URL"] ?? options.TwoFactorOtpUrl;
         });
 
         var emailSection = configuration.GetSection(EmailOptions.SectionName);
@@ -73,7 +76,12 @@ public static class DependencyInjection
             ?? smsSection["Provider"]
             ?? "Console";
 
-        if (smsProvider.Equals("Textbelt", StringComparison.OrdinalIgnoreCase))
+        if (smsProvider.Equals("TwoFactor", StringComparison.OrdinalIgnoreCase)
+            || smsProvider.Equals("2Factor", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddHttpClient<ISmsService, TwoFactorSmsService>();
+        }
+        else if (smsProvider.Equals("Textbelt", StringComparison.OrdinalIgnoreCase))
         {
             services.AddHttpClient<ISmsService, TextbeltSmsService>();
         }

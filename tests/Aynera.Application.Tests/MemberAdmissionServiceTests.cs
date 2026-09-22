@@ -51,7 +51,7 @@ public class MemberAdmissionServiceTests
                 $"{id:N}@example.test", emailConfirmed, "Member", active, deleted, false, restricted, ["Member"]));
             if (withProfile)
             {
-                Profiles.Set(new MemberProfileRecord(id, "Asha Rao", "Female", dob ?? AdultDob, "Delhi", DelhiId));
+                Profiles.Set(new MemberProfileRecord(id, "Asha Rao", "Female", dob ?? AdultDob, "Delhi", DelhiId, "Pune"));
             }
 
             if (withPreferences)

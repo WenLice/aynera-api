@@ -97,20 +97,22 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             Religion: "Hindu"));
 
         // A full replace: everything left out is cleared, not kept.
+        // Hometown is required, so it is restated rather than omitted — a new value proves it is replaced too.
         var second = await client.PutAsJsonAsync("/members/me/profile", new UpdateMemberProfileRequest(
             "Ada",
-            Gender.Other,
+            Gender.ThirdGender,
             Adult,
-            "Bangalore"));
+            "Bangalore",
+            Hometown: "Mysore"));
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
 
         var profile = (await Body<AuthAccountDto>(second))!.Data!.Profile!;
         Assert.Equal("Ada", profile.Name);
-        Assert.Equal("Other", profile.Gender);
+        Assert.Equal("ThirdGender", profile.Gender);
         Assert.Equal("Bangalore", profile.City);
         Assert.Null(profile.Nickname);
         Assert.Null(profile.HeightCm);
-        Assert.Null(profile.Hometown);
+        Assert.Equal("Mysore", profile.Hometown);
         Assert.Null(profile.Work);
         Assert.Null(profile.Religion);
     }
@@ -121,7 +123,7 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
     /// </summary>
     [Theory]
     [InlineData("\"Female\"", "Female")]
-    [InlineData("\"Other\"", "Other")]
+    [InlineData("\"ThirdGender\"", "ThirdGender")]
     [InlineData("\"PreferNotToSay\"", "PreferNotToSay")]
     [InlineData("1", "Female")]
     [InlineData("3", "PreferNotToSay")]
@@ -134,7 +136,8 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
               "name": "Ada Lovelace",
               "gender": {{genderJson}},
               "dateOfBirth": "{{Adult:yyyy-MM-dd}}",
-              "city": "Bangalore"
+              "city": "Bangalore",
+              "hometown": "Pune"
             }
             """;
 
@@ -159,7 +162,8 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             "Ada Lovelace",
             Gender.Female,
             Adult,
-            "Bangalore"));
+            "Bangalore",
+            Hometown: "Pune"));
         Assert.True((await Body<AuthAccountDto>(shown))!.Data!.Profile!.GenderIsPublic);
 
         var hidden = await client.PutAsJsonAsync("/members/me/profile", new UpdateMemberProfileRequest(
@@ -167,6 +171,7 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             Gender.Female,
             Adult,
             "Bangalore",
+            Hometown: "Pune",
             GenderIsPublic: false));
         Assert.Equal(HttpStatusCode.OK, hidden.StatusCode);
 
@@ -185,7 +190,8 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             "Ada Lovelace",
             Gender.Female,
             Adult,
-            "Atlantis"));
+            "Atlantis",
+            Hometown: "Pune"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("city_not_supported", (await Body<object?>(response))!.ErrorCode);
@@ -203,7 +209,8 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             "Kid User",
             Gender.Male,
             DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-16)),
-            "Bangalore"));
+            "Bangalore",
+            Hometown: "Pune"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -217,7 +224,8 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
             "Ada Lovelace",
             Gender.Female,
             Adult,
-            "Bangalore"));
+            "Bangalore",
+            Hometown: "Pune"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

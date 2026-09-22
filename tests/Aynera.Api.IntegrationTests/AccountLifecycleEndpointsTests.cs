@@ -357,6 +357,7 @@ public sealed class AccountLifecycleEndpointsTests(AuthApiFactory factory)
             new DateOnly(1990, 5, 15),
             "Bangalore",
             email ?? $"lifecycle-{Guid.NewGuid():N}@example.com",
+            Hometown: "Pune",
             Password: "secret12");
         using var registered = await client.PostAsJsonAsync("/members/register", request);
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);

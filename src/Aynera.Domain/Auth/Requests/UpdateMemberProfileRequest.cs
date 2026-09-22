@@ -9,6 +9,7 @@ namespace Aynera.Domain.Auth.Requests;
 /// </summary>
 /// <param name="Name">The member's own name — a first name or a full name. Required.</param>
 /// <param name="City">A city name from the shared catalog; resolved to its canonical spelling and id.</param>
+/// <param name="Hometown">Where the member is from. Required — a full replace must restate it.</param>
 /// <param name="Nickname">Optional name strangers see before a match. Omitted means the first letter of <paramref name="Name"/>.</param>
 public sealed record UpdateMemberProfileRequest(
     string Name,

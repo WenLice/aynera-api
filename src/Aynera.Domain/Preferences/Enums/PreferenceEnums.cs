@@ -12,7 +12,7 @@ public enum InterestedIn
     Female = 1,
 
     /// <summary>Third gender / transgender.</summary>
-    Other = 2,
+    ThirdGender = 2,
 
     /// <summary>Every gender above.</summary>
     Everyone = 3

@@ -20,8 +20,8 @@ public static class PreferenceRules
         {
             InterestedIn.Male => [Gender.Male],
             InterestedIn.Female => [Gender.Female],
-            InterestedIn.Other => [Gender.Other],
-            InterestedIn.Everyone => [Gender.Male, Gender.Female, Gender.Other],
+            InterestedIn.ThirdGender => [Gender.ThirdGender],
+            InterestedIn.Everyone => [Gender.Male, Gender.Female, Gender.ThirdGender],
             _ => []
         };
 

@@ -13,9 +13,9 @@ public sealed record MemberProfileRecord(
     DateOnly DateOfBirth,
     string City,
     Guid CityId,
+    string Hometown,
     string? Nickname = null,
     int? HeightCm = null,
-    string? Hometown = null,
     string? Work = null,
     string? Religion = null,
     bool GenderIsPublic = true);

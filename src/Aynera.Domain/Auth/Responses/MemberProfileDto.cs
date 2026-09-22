@@ -11,9 +11,9 @@ public sealed record MemberProfileDto(
     DateOnly DateOfBirth,
     string City,
     Guid CityId,
+    string Hometown,
     string? Nickname = null,
     int? HeightCm = null,
-    string? Hometown = null,
     string? Work = null,
     string? Religion = null,
     /// <summary>False when the member chose not to show their gender. It is still used for matching.</summary>
