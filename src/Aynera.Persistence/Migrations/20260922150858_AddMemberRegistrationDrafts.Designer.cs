@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Aynera.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Aynera.Persistence.Migrations
 {
     [DbContext(typeof(AyneraDbContext))]
-    partial class AyneraDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260922150858_AddMemberRegistrationDrafts")]
+    partial class AddMemberRegistrationDrafts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -756,42 +759,6 @@ namespace Aynera.Persistence.Migrations
                     b.ToTable("MemberProfiles", (string)null);
                 });
 
-            modelBuilder.Entity("Aynera.Persistence.Entities.MemberProfileAnswers", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Beliefs")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("DeletedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Lifestyle")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Vibe")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.HasKey("UserId");
-
-                    b.HasIndex("IsDeleted");
-
-                    b.ToTable("MemberProfileAnswers", (string)null);
-                });
-
             modelBuilder.Entity("Aynera.Persistence.Entities.MemberRegistrationDraft", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -1314,17 +1281,6 @@ namespace Aynera.Persistence.Migrations
                     b.HasOne("Aynera.Persistence.Entities.AppUser", "User")
                         .WithOne("Profile")
                         .HasForeignKey("Aynera.Persistence.Entities.MemberProfile", "UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Aynera.Persistence.Entities.MemberProfileAnswers", b =>
-                {
-                    b.HasOne("Aynera.Persistence.Entities.AppUser", "User")
-                        .WithOne()
-                        .HasForeignKey("Aynera.Persistence.Entities.MemberProfileAnswers", "UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

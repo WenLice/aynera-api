@@ -1,6 +1,8 @@
 using Aynera.Application.Features.Admissions.Services.Implementations;
 using Aynera.Application.Features.Admissions.Services.Interfaces;
 using Aynera.Application.Features.Preferences.Services.Implementations;
+using Aynera.Application.Features.Registration.Services.Implementations;
+using Aynera.Application.Features.Registration.Services.Interfaces;
 using Aynera.Application.Features.Preferences.Services.Interfaces;
 using Aynera.Application.Features.Users.Services.Implementations;
 using Aynera.Application.Features.Users.Services.Interfaces;
@@ -31,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IAccountLifecycleService, AccountLifecycleService>();
         services.AddScoped<IRegistrationService, RegistrationService>();
+        services.AddScoped<IRegistrationDraftService, RegistrationDraftService>();
         services.AddScoped<AuthService>();
         services.AddScoped<IAuthService>(sp => sp.GetRequiredService<AuthService>());
         services.AddScoped<IAdminAuthService>(sp => sp.GetRequiredService<AuthService>());

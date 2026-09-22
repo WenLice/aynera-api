@@ -2,9 +2,12 @@ using Aynera.Domain.Auth.Statics;
 using Aynera.Application.Features.Users.Services.Interfaces;
 using Aynera.Api.Controllers.Base;
 using Aynera.Application.Features.Auth.Services.Interfaces;
+using Aynera.Application.Features.Registration.Services.Interfaces;
 using Aynera.Domain.Auth.Requests;
 using Aynera.Domain.Auth.Responses;
 using Aynera.Domain.Common;
+using Aynera.Domain.Registration.Requests;
+using Aynera.Domain.Registration.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,6 +26,7 @@ public sealed class MembersController : BaseController
 
     private readonly IAccountLifecycleService _lifecycle;
     private readonly IRegistrationService _registration;
+    private readonly IRegistrationDraftService _draft;
     private readonly IUserManagementService _userManagement;
     private readonly IAuthService _authService;
 
@@ -30,18 +34,20 @@ public sealed class MembersController : BaseController
         IAuthService authService,
         IUserManagementService userManagement,
         IRegistrationService registration,
+        IRegistrationDraftService draft,
         IAccountLifecycleService lifecycle)
     {
         _authService = authService;
         _userManagement = userManagement;
         _registration = registration;
+        _draft = draft;
         _lifecycle = lifecycle;
     }
 
     /// <summary>Register</summary>
     /// <remarks>
     /// Creates a new member account and profile.
-    /// Required: phone, name, gender (Male|Female|Other|PreferNotToSay), dateOfBirth (18+), city, email.
+    /// Required: phone, name, gender (Male|Female|ThirdGender|PreferNotToSay), dateOfBirth (18+), city, email.
     /// <c>city</c> must be an active city in the shared city catalog (<c>GET /early-access/cities/GetAll</c>);
     /// the canonical catalog name and its <c>cityId</c> are stored. Unknown or closed cities fail with <c>city_not_supported</c>.
     /// Optional: nickname, heightCm, hometown, work, religion. Photos are uploaded separately via Photos Upload.
@@ -160,7 +166,7 @@ public sealed class MembersController : BaseController
     /// Writes the authenticated member's basic details, creating the profile row on the first save
     /// (the app's registration path arrives here with a phone-verified account and no profile yet).
     /// A full replace, not a patch: omitted optional fields are cleared.
-    /// Required: name, gender (Male|Female|Other|PreferNotToSay), dateOfBirth (18+), city.
+    /// Required: name, gender (Male|Female|ThirdGender|PreferNotToSay), dateOfBirth (18+), city.
     /// Optional: nickname (2-100 characters), heightCm, hometown, work, religion.
     /// <c>name</c> is the member's own name — a first name or a full name, their choice.
     /// <c>nickname</c> is what strangers see before a mutual match; omitted means the first letter of <c>name</c>.
@@ -182,6 +188,83 @@ public sealed class MembersController : BaseController
             request,
             cancellationToken);
         return OkResponse(account);
+    }
+
+    /// <summary>GetRegistrationProgress</summary>
+    /// <remarks>
+    /// Where the authenticated member stands in registration: the answers collected so far, which
+    /// steps that satisfies, and <c>nextStep</c> — the first one still outstanding.
+    /// The app opens the flow at <c>nextStep</c> and prefills from <c>answers</c>, so a member who
+    /// left part-way resumes instead of starting again, on any device.
+    /// <c>nextStep</c> is null once the personal-details half is finished; <c>profile</c> is
+    /// non-null from that point on.
+    /// </remarks>
+    [HttpGet("me/registration")]
+    [Authorize(Policy = AuthPolicies.Member)]
+    [ProducesResponseType(typeof(ApiResponse<RegistrationProgressDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<RegistrationProgressDto>>> GetRegistration(
+        CancellationToken cancellationToken)
+    {
+        var progress = await _draft.GetAsync(CurrentUser.GetRequiredUserId(), cancellationToken);
+        return OkResponse(progress);
+    }
+
+    /// <summary>SaveRegistrationPage</summary>
+    /// <remarks>
+    /// Saves one registration page's answers. Every field is optional — send only what the page in
+    /// front of the member collects — and the server merges it into what is already stored.
+    /// A partial write, unlike <c>PUT me/profile</c>, which replaces everything.
+    /// <para>
+    /// The answers are held server-side and promoted to their own table the moment that table's
+    /// required set is complete — the personal details to the member's profile (name, gender,
+    /// dateOfBirth, city, hometown), and the matching preferences to their own row (interestedIn,
+    /// minAge, track, outcome). The two are independent: finishing one does not wait for or discard
+    /// the other. After a group is promoted the same call edits it directly.
+    /// </para>
+    /// <para>
+    /// The caller never chooses between those and does not need to know which happened —
+    /// <c>profile</c> and <c>preferences</c> in the response are non-null once they exist, and
+    /// <c>answers</c> holds only what is still in the draft.
+    /// </para>
+    /// <para>
+    /// <c>maxAge</c> omitted means "not sent". To move the upper end back to open — "minAge and
+    /// older" — send <c>maxAgeIsOpen: true</c> instead, which cannot be combined with a
+    /// <c>maxAge</c>.
+    /// </para>
+    /// <para>
+    /// <c>lifestyle</c>, <c>beliefs</c> and <c>vibe</c> are the optional questions. They have no
+    /// required set, so they are stored as they arrive rather than waiting to be promoted.
+    /// <c>lifestyle</c> and <c>beliefs</c> are keyed by question —
+    /// <c>{"drink":{"option":"sometimes","public":true}}</c> — and merge per question, so a page
+    /// carrying one answer leaves the rest alone. <c>vibe</c> is a flat set of chip keys and
+    /// <b>replaces</b> what is stored, because it is edited as a whole and merging would make
+    /// deselecting a chip impossible; send the member's complete selection.
+    /// </para>
+    /// <para>
+    /// <c>public</c> defaults to true and is per answer: answering is not the same as publishing.
+    /// Question and option keys are stored as sent — with the question list living in the app, the
+    /// server checks their shape but cannot check that they name a real question.
+    /// </para>
+    /// Values are validated as strictly as they would be on the profile: a malformed date or an
+    /// over-long name is refused on the page that collected it. Only the presence of the required
+    /// set waits. Send an empty string to clear an optional value (nickname, work); a required
+    /// field cannot be blanked.
+    /// </remarks>
+    [HttpPatch("me/registration")]
+    [Authorize(Policy = AuthPolicies.Member)]
+    [ProducesResponseType(typeof(ApiResponse<RegistrationProgressDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<RegistrationProgressDto>>> SaveRegistrationPage(
+        [FromBody] UpdateRegistrationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var progress = await _draft.PatchAsync(
+            CurrentUser.GetRequiredUserId(),
+            request,
+            cancellationToken);
+        return OkResponse(progress);
     }
 
     /// <summary>Me</summary>

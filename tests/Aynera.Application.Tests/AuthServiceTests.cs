@@ -174,6 +174,7 @@ public class AuthServiceTests
             new DateOnly(1990, 5, 15),
             "Mumbai",
             email,
+            Hometown: "Pune",
             Religion: "Hindu",
             Password: password);
 
@@ -1381,18 +1382,36 @@ public class AuthServiceTests
         Assert.True(account.PhoneConfirmed);
     }
 
+    /// <summary>
+    /// Registration spans several pages, so a member can leave part-way and come back to the phone
+    /// step with an account already created. Refusing a known number there would dead-end exactly
+    /// the people the resume flow exists for, so the step issues a sign-in code instead.
+    /// </summary>
     [Fact]
-    public async Task StepwiseRegistration_RejectsTakenPhone_AndTakenEmail()
+    public async Task StepwiseRegistration_KnownPhone_SignsInInsteadOfRefusing()
+    {
+        var (auth, _, sms, _) = StepwiseHarness();
+        var registration = RegistrationFor(auth);
+        var existing = await registration.RegisterAsync(
+            RegisterRequest("9876543210", "taken@example.com"), CancellationToken.None);
+
+        await registration.StartPhoneRegistrationAsync(
+            new StartPhoneRegistrationRequest("9876543210"), null, CancellationToken.None);
+        Assert.NotNull(sms.LastCode);
+
+        var tokens = await registration.VerifyPhoneRegistrationAsync(
+            new VerifyPhoneRegistrationRequest("9876543210", sms.LastCode!), CancellationToken.None);
+
+        // The existing account, not a second one created alongside it.
+        Assert.Equal(existing.Id, tokens.Account.Id);
+    }
+
+    [Fact]
+    public async Task StepwiseRegistration_RejectsTakenEmail()
     {
         var (auth, _, sms, _) = StepwiseHarness();
         var registration = RegistrationFor(auth);
         await registration.RegisterAsync(RegisterRequest("9876543210", "taken@example.com"), CancellationToken.None);
-
-        var phoneTaken = await Assert.ThrowsAsync<AuthException>(() => registration.StartPhoneRegistrationAsync(
-            new StartPhoneRegistrationRequest("9876543210"), null, CancellationToken.None));
-        Assert.Equal("user_already_exists", phoneTaken.ErrorCode);
-        Assert.Equal(409, phoneTaken.StatusCode);
-        Assert.Null(sms.LastCode);
 
         await registration.StartPhoneRegistrationAsync(
             new StartPhoneRegistrationRequest("9123456789"), null, CancellationToken.None);
@@ -1475,7 +1494,8 @@ public class AuthServiceTests
             Gender.Male,
             DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-10)),
             "Mumbai",
-            "kid@example.com");
+            "kid@example.com",
+            Hometown: "Pune");
 
         var ex = await Assert.ThrowsAsync<AuthException>(() =>
             RegistrationFor(auth).RegisterAsync(underage, CancellationToken.None));

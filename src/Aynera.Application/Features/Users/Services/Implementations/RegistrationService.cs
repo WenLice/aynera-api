@@ -65,7 +65,7 @@ public sealed class RegistrationService(
                         CityId: city.Id,
                         Nickname: request.Nickname,
                         HeightCm: request.HeightCm,
-                        Hometown: request.Hometown,
+                        Hometown: request.Hometown!.Trim(),
                         Work: request.Work,
                         Religion: request.Religion,
                         GenderIsPublic: request.GenderIsPublic),
@@ -112,7 +112,7 @@ public sealed class RegistrationService(
 
         try
         {
-            await EnsurePhoneFreeAsync(phone, cancellationToken);
+            var (purpose, _) = await ResolvePhonePurposeAsync(phone, cancellationToken);
 
             var (allowed, retryAfter) = await otpChallenges.TryAcquireRequestSlotAsync(
                 PhoneChannel, phone, clientIp, cancellationToken);
@@ -131,7 +131,7 @@ public sealed class RegistrationService(
                     CodeHash: TokenHasher.Hash(code),
                     Attempts: 0,
                     ExpiresAtUtc: DateTimeOffset.UtcNow.Add(ttl),
-                    Purpose: OtpPurposes.Registration,
+                    Purpose: purpose,
                     Audience: jwtOptions.Value.AudienceMember),
                 ttl,
                 cancellationToken);
@@ -141,10 +141,12 @@ public sealed class RegistrationService(
                 new AuditEventWriteModel(
                     Action: AuditActions.OtpRequested,
                     Outcome: AuditOutcomes.Success,
-                    Message: "Registration OTP requested.",
+                    Message: purpose == OtpPurposes.Login
+                        ? "Sign-in OTP requested from the phone step."
+                        : "Registration OTP requested.",
                     ClientIp: clientIp,
                     Audience: jwtOptions.Value.AudienceMember,
-                    Metadata: new { identifier = masked, channel = PhoneChannel, purpose = OtpPurposes.Registration }),
+                    Metadata: new { identifier = masked, channel = PhoneChannel, purpose }),
                 cancellationToken);
 
             logger.LogInformation("StartPhoneRegistration succeeded for {Phone}", masked);
@@ -166,7 +168,30 @@ public sealed class RegistrationService(
         var masked = AuditRedaction.MaskPhone(phone);
         logger.LogInformation("VerifyPhoneRegistration for {Phone}", masked);
 
-        await ConsumeCodeAsync(PhoneChannel, phone, request.Code, OtpPurposes.Registration, masked, cancellationToken);
+        // Resolved the same way the code was issued, so a member returning to the registration
+        // screen verifies a sign-in code rather than being refused for already existing.
+        var (purpose, existing) = await ResolvePhonePurposeAsync(phone, cancellationToken);
+
+        await ConsumeCodeAsync(PhoneChannel, phone, request.Code, purpose, masked, cancellationToken);
+
+        if (existing is not null)
+        {
+            await audit.WriteAsync(
+                new AuditEventWriteModel(
+                    Action: AuditActions.OtpVerified,
+                    Outcome: AuditOutcomes.Success,
+                    Message: "Member signed in from the phone step.",
+                    UserId: existing.Id,
+                    SubjectUserId: existing.Id,
+                    SubjectType: AuditSubjectTypes.User,
+                    SubjectId: existing.Id.ToString("D"),
+                    Audience: jwtOptions.Value.AudienceMember,
+                    Metadata: new { identifier = masked, channel = PhoneChannel, purpose }),
+                cancellationToken);
+
+            logger.LogInformation("VerifyPhoneRegistration signed in existing user {UserId}", existing.Id);
+            return await sessions.IssueMemberSessionAsync(existing.Id, amr: "otp", cancellationToken);
+        }
 
         // The proof is consumed; now the account exists exactly once even if two verifies race.
         var user = await transaction.ExecuteAsync(new[] { "registration:phone:" + phone }, async ct =>
@@ -343,7 +368,7 @@ public sealed class RegistrationService(
                         CityId: city.Id,
                         Nickname: request.Nickname,
                         HeightCm: request.HeightCm,
-                        Hometown: request.Hometown,
+                        Hometown: request.Hometown!.Trim(),
                         Work: request.Work,
                         Religion: request.Religion,
                         GenderIsPublic: request.GenderIsPublic),
@@ -385,12 +410,27 @@ public sealed class RegistrationService(
     private const string EmailChannel = "email";
 
     /// <summary>Mirrors the repository's registration rule so the start step fails the same way as creation would.</summary>
-    private async Task EnsurePhoneFreeAsync(string phone, CancellationToken cancellationToken)
+    /// <summary>
+    /// Decides what the phone step is for: registering a new member, or signing an existing one
+    /// back in. The member types their number into one screen and gets one code either way.
+    /// <para>
+    /// This is what makes "leave part-way and come back" work. Registration is now spread across
+    /// several pages, so a member can have a verified phone and half a profile; if a known number
+    /// were refused here they would be dead-ended on the screen they naturally return to, with no
+    /// route onward. It also stops the endpoint confirming to an anonymous caller whether a given
+    /// number is registered.
+    /// </para>
+    /// Deactivated and restricted accounts keep their explicit refusals — those need a person, not
+    /// another code.
+    /// </summary>
+    private async Task<(string Purpose, UserRecord? Existing)> ResolvePhonePurposeAsync(
+        string phone,
+        CancellationToken cancellationToken)
     {
         var existing = await users.FindByPhoneAsync(phone, cancellationToken);
         if (existing is null || existing.IsDeleted)
         {
-            return;
+            return (OtpPurposes.Registration, null);
         }
 
         if (!existing.IsActive)
@@ -409,10 +449,7 @@ public sealed class RegistrationService(
                 statusCode: 409);
         }
 
-        throw new AuthException(
-            "user_already_exists",
-            "A member account with this phone already exists. Sign in with the existing account.",
-            statusCode: 409);
+        return (OtpPurposes.Login, existing);
     }
 
     private async Task ConsumeCodeAsync(

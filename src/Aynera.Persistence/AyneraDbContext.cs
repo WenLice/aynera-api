@@ -16,6 +16,8 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
     public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
     public DbSet<MemberProfile> MemberProfiles => Set<MemberProfile>();
     public DbSet<MemberPreferences> MemberPreferences => Set<MemberPreferences>();
+    public DbSet<MemberRegistrationDraft> MemberRegistrationDrafts => Set<MemberRegistrationDraft>();
+    public DbSet<MemberProfileAnswers> MemberProfileAnswers => Set<MemberProfileAnswers>();
     public DbSet<MemberAdmission> MemberAdmissions => Set<MemberAdmission>();
     public DbSet<MemberConsent> MemberConsents => Set<MemberConsent>();
     public DbSet<MemberPhoto> MemberPhotos => Set<MemberPhoto>();
@@ -93,7 +95,7 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
             entity.Property(x => x.GenderIsPublic).IsRequired();
             entity.Property(x => x.DateOfBirth).IsRequired();
             entity.Property(x => x.City).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.Hometown).HasMaxLength(100);
+            entity.Property(x => x.Hometown).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Work).HasMaxLength(200);
             entity.Property(x => x.Religion).HasMaxLength(100);
             entity.Property(x => x.CreatedAtUtc).IsRequired();
@@ -135,6 +137,54 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
             entity.HasOne(x => x.User)
                 .WithOne()
                 .HasForeignKey<MemberPreferences>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<MemberRegistrationDraft>(entity =>
+        {
+            entity.ToTable("MemberRegistrationDrafts");
+            entity.HasKey(x => x.UserId);
+            entity.Property(x => x.Data)
+                .HasColumnType("jsonb")
+                .IsRequired();
+            entity.Property(x => x.CreatedAtUtc).IsRequired();
+
+            // Cascade, unlike the profile's Restrict: a draft is scaffolding, not a record worth
+            // keeping once the account it belongs to is gone.
+            entity.HasOne(x => x.User)
+                .WithOne()
+                .HasForeignKey<MemberRegistrationDraft>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Matches AppUser's own filter. The other member tables filter on their own IsDeleted,
+            // but a draft has no such column by design — it is hard-deleted on promotion — so the
+            // equivalent is to follow the account. Without this, EF warns that the required
+            // principal can be filtered out from under the dependent, and a soft-deleted member's
+            // draft would still be readable.
+            entity.HasQueryFilter(x => !x.User.IsDeleted);
+        });
+
+        builder.Entity<MemberProfileAnswers>(entity =>
+        {
+            entity.ToTable("MemberProfileAnswers");
+
+            // Keyed by the member, like every other one-row-per-member table here. A surrogate id
+            // would still need a unique index on UserId to stop a member holding two rows, so it
+            // would cost a column and an index for nothing.
+            entity.HasKey(x => x.UserId);
+
+            entity.Property(x => x.Lifestyle).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.Beliefs).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.Vibe).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.HasIndex(x => x.IsDeleted);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            // Restrict, like the profile: these are the member's own words about themselves, not
+            // scaffolding, so they outlive registration and are removed deliberately.
+            entity.HasOne(x => x.User)
+                .WithOne()
+                .HasForeignKey<MemberProfileAnswers>(x => x.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
