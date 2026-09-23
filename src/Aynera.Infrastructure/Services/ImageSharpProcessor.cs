@@ -41,6 +41,19 @@ public sealed class ImageSharpProcessor : IImageProcessor
         try
         {
             using var image = await Image.LoadAsync(input, cancellationToken);
+
+            // Phones record rotation in EXIF rather than in the pixels. Bake it in first, because the
+            // next step throws EXIF away and the photo would otherwise show sideways.
+            image.Mutate(ctx => ctx.AutoOrient());
+
+            // A phone photo carries where and when it was taken and on what device. None of that may
+            // reach another member — a home-screen selfie would publish the member's address.
+            image.Metadata.ExifProfile = null;
+            image.Metadata.XmpProfile = null;
+            image.Metadata.IptcProfile = null;
+            // The colour profile stays: it holds no location, and dropping it washes out wide-gamut
+            // phone photos.
+
             var max = Math.Max(1, _options.MaxDimension);
             if (image.Width > max || image.Height > max)
             {

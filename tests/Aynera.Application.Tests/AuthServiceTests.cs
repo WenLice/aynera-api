@@ -2280,6 +2280,9 @@ file sealed class FakeMemberProfileRepository : IMemberProfileRepository
 
 file sealed class FakeMemberPhotoRepository : IMemberPhotoRepository
 {
+    public Task UpdateCaptionAsync(Guid userId, Guid photoId, string? caption, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     public Task<int> CountByUserIdAsync(Guid userId, CancellationToken cancellationToken) =>
         Task.FromResult(0);
 
@@ -2315,8 +2318,14 @@ file sealed class FakeMemberPhotoRepository : IMemberPhotoRepository
 
 file sealed class FakeIntroductionVideoRepository : IIntroductionVideoRepository
 {
+    public Task UpdateCaptionAsync(Guid userId, string? caption, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     public Task<IntroductionVideoRecord?> FindByUserIdAsync(Guid userId, CancellationToken cancellationToken) =>
         Task.FromResult<IntroductionVideoRecord?>(null);
+
+    public Task<byte[]?> ReadContentAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult<byte[]?>(null);
 
     public Task<IntroductionVideoRecord> UpsertAsync(
         IntroductionVideoRecord video,

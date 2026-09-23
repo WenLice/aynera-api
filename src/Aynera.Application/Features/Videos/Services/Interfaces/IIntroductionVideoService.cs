@@ -15,4 +15,7 @@ public interface IIntroductionVideoService
     Task<IntroductionVideoBytes> GetBytesAsync(Guid userId, CancellationToken cancellationToken);
 
     Task DeleteAsync(Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>Sets or clears the caption without re-uploading the video.</summary>
+    Task UpdateCaptionAsync(Guid userId, string? caption, CancellationToken cancellationToken);
 }

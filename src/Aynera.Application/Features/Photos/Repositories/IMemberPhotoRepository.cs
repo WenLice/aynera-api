@@ -26,4 +26,7 @@ public interface IMemberPhotoRepository
     Task SoftDeleteAllForUserAsync(Guid userId, CancellationToken cancellationToken);
 
     Task PromoteNextReferenceAsync(Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>Sets or clears (null) a live photo's caption. Throws <c>photo_not_found</c> when there is none.</summary>
+    Task UpdateCaptionAsync(Guid userId, Guid photoId, string? caption, CancellationToken cancellationToken);
 }

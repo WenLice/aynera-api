@@ -110,12 +110,14 @@ State is checked on every authorized request. This is not permanent token revoca
 | `photo_unsupported_type` | 400 | Not JPEG/PNG/WebP |
 | `photo_invalid` | 400 | Image could not be decoded |
 | `photo_face_mismatch` | 400 | Face match rejected the photo |
+| `photo_face_required` | 400 | Slot 1 or 2 photo shows no face |
+| `photo_face_check_required` | 400 | Face check not passed yet — photos are matched to the verified face |
 | `photo_ai_generated` | 400 | Photo failed authenticity check (likely AI/synthetic) |
 | `photo_not_found` | 404 | Photo id missing for user |
 | `video_required` | 400 | Introduction video upload missing file |
 | `video_too_large` | 400 | Video exceeds MaxBytes |
 | `video_unsupported_type` | 400 | Not MP4/WebM/QuickTime |
-| `video_reference_photo_required` | 400 | No reference photo for face match |
+| `video_face_check_required` | 400 | Face check not passed yet — the video is matched to the verified face |
 | `video_face_mismatch` | 400 | Face match rejected the video |
 | `video_ai_generated` | 400 | Video failed authenticity check (likely AI/synthetic) |
 | `video_guideline_failed` | 400 | Banned-words / community guideline check failed |
@@ -1524,7 +1526,11 @@ POST /auth/logout                  { refreshToken }
 
 Config: `Aynera:Email:VerifyLinkBaseUrl` (or `AYNERA_EMAIL_VERIFY_LINK_BASE_URL`) is the page or app deep link that receives `userId` + `token` in the query string and POSTs them to `/auth/verifyemail`.
 
-Photos are stored as compressed JPEG `BYTEA` in Postgres (`Aynera:Photos`). Face matching uses `IFaceMatchService` (stub in dev; `StubFaceMatchStatus` defaults to `Matched`).
+Photos and the introduction video live in object storage (Cloudflare R2, `Aynera:R2`), one folder per member: `{userId}/photo_{1..5}.jpg` and `{userId}/intro_video.{mp4|mov|webm}`. Postgres keeps only the key and the check results, in one `MemberMedia` table. A one-file `POST photos/Upload` may name its `slot` (1–5, replaces the photo there) and `caption` as form fields; `POST introduction-video/Upload` takes `caption`. Captions change without re-uploading via `PATCH photos/{photoId}` and `PATCH introduction-video/me` (`{ "caption": string|null }`, ≤ 200 chars, blank clears). Photo and video DTOs carry `caption` and `url` — a signed R2 link valid for one hour; show it, never store it. Uploads still pass through the API, so every check runs on the real bytes first; photos are re-encoded to JPEG with EXIF/XMP/IPTC (including GPS) stripped (`Aynera:Photos`). Face matching uses `IFaceMatchService` (stub in dev; `StubFaceMatchStatus` defaults to `Matched`).
+
+**Face check (liveness)** — AWS Rekognition Face Liveness in `ap-south-1`. It comes **first**, before photos: registration order is `… vibe → liveness → photos → consent`. `POST liveness/Start` (no prerequisites; 503 `liveness_unavailable` without `Aynera:Aws`) returns `{ sessionId, region, pageUrl }`; the app opens `pageUrl` (the page at `/liveness/`, built from `/liveness-page` into `wwwroot`) in a WebView or iframe. The page streams video straight to AWS and only posts `{ type: "liveness", status: "done"|"cancelled"|"error", sessionId }`. `POST liveness/{sessionId}/Complete` reads the result from AWS server-side: `Passed` needs confidence ≥ `Aynera:Liveness:MinConfidence` (80) and a captured frame; otherwise `NotLive`, `Expired` or `Failed`; 409 `liveness_not_finished`, 404 for another member's session, repeat calls return the same verdict. `GET liveness/me` returns the latest verdict. The frame is stored as `{userId}/liveness.jpg` and, when the **latest** check passed, is the member's **verified face**.
+
+**Matching photos and the video to the verified face.** Every photo upload and the intro video are compared (`CompareFaces`, similarity ≥ 90) with the verified face; without one, uploads fail with 400 `photo_face_check_required` / `video_face_check_required`. Slots in `Aynera:Photos:MustMatchSlots` (default `[1, 2]` — "Your face", "Full frame") must show the member: no face → 400 `photo_face_required`, someone else → 400 `photo_face_mismatch`. Other slots are never blocked; a match is recorded `Matched`, anything else `Skipped` (visible to curators, not an identity rejection).
 
 Media authenticity (`Aynera:MediaAuthenticity`) runs on **original** photo/video bytes before processing. The default `HeuristicMediaAuthenticityService` rejects known AI-tool markers in EXIF/XMP/IPTC (and sampled video metadata). Undetermined media is allowed when `AllowWhenUndetermined` is true. Set `StubForceAiDetected` only in tests. Swap the service later for a dedicated AI-detection provider without changing controllers.
 

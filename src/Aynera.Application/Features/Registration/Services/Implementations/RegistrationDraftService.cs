@@ -22,7 +22,15 @@ using Aynera.Domain.Registration.Requests;
 using Aynera.Domain.Registration.Responses;
 using Aynera.Domain.Registration.Statics;
 using AutoMapper;
+using Aynera.Application.Features.Admissions.Models;
+using Aynera.Application.Features.Admissions.Repositories;
+using Aynera.Application.Features.Photos.Models;
+using Aynera.Application.Features.Photos.Repositories;
+using Aynera.Application.Features.Liveness.Repositories;
+using Aynera.Domain.Liveness.Enums;
+using Aynera.Domain.Admissions.Statics;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Aynera.Application.Features.Registration.Services.Implementations;
 
@@ -45,6 +53,11 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
     private readonly IMemberRegistrationDraftRepository _drafts;
     private readonly IRegistrationService _registration;
     private readonly IMemberPreferencesService _preferencesService;
+    private readonly IMemberPhotoRepository _photos;
+    private readonly IMemberConsentRepository _consents;
+    private readonly ILivenessRepository _liveness;
+    private readonly PhotoOptions _photoOptions;
+    private readonly AdmissionOptions _admissionOptions;
     private readonly IMapper _mapper;
     private readonly ILogger<RegistrationDraftService> _logger;
 
@@ -56,6 +69,11 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
         IMemberRegistrationDraftRepository drafts,
         IRegistrationService registration,
         IMemberPreferencesService preferencesService,
+        IMemberPhotoRepository photos,
+        IMemberConsentRepository consents,
+        ILivenessRepository liveness,
+        IOptions<PhotoOptions> photoOptions,
+        IOptions<AdmissionOptions> admissionOptions,
         IMapper mapper,
         ILogger<RegistrationDraftService> logger)
     {
@@ -66,6 +84,11 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
         _drafts = drafts;
         _registration = registration;
         _preferencesService = preferencesService;
+        _photos = photos;
+        _consents = consents;
+        _liveness = liveness;
+        _photoOptions = photoOptions.Value;
+        _admissionOptions = admissionOptions.Value;
         _mapper = mapper;
         _logger = logger;
     }
@@ -149,7 +172,12 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
             await _drafts.UpsertAsync(userId, remaining, cancellationToken);
         }
 
-        return Progress(user, new State(remaining, profile, preferences, profileAnswers));
+        // A page write never touches photos or consents, so their state carries over as loaded.
+        return Progress(
+            user,
+            new State(
+                remaining, profile, preferences, profileAnswers,
+                state.PhotosComplete, state.ConsentsAccepted, state.LivenessPassed));
     }
 
     /// <summary>
@@ -167,14 +195,23 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
             draft,
             profile is null ? null : _mapper.Map<MemberProfileDto>(profile),
             preferences is null ? null : ToDto(preferences),
-            await _answers.FindByUserIdAsync(userId, cancellationToken));
+            await _answers.FindByUserIdAsync(userId, cancellationToken),
+            await _photos.CountByUserIdAsync(userId, cancellationToken) >= _photoOptions.MaxCount,
+            ConsentRules.Missing(
+                _admissionOptions.RequiredConsentVersions,
+                await _consents.ListByUserIdAsync(userId, cancellationToken)).Count == 0,
+            (await _liveness.FindLatestCompletedAsync(userId, cancellationToken))?.Outcome
+                == LivenessOutcome.Passed.ToString());
     }
 
     private sealed record State(
         RegistrationAnswers Draft,
         MemberProfileDto? Profile,
         MemberPreferencesDto? Preferences,
-        MemberProfileAnswersRecord? ProfileAnswers)
+        MemberProfileAnswersRecord? ProfileAnswers,
+        bool PhotosComplete,
+        bool ConsentsAccepted,
+        bool LivenessPassed)
     {
         /// <summary>The draft plus whatever has already been promoted, as one answer sheet.</summary>
         public RegistrationAnswers Answers => FromPreferences(FromProfile(Draft, Profile), Preferences);
@@ -196,7 +233,13 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
     private static RegistrationProgressDto Progress(UserRecord user, State state)
     {
         var completed = RegistrationProgress.Completed(
-            user.PhoneConfirmed, user.EmailConfirmed, state.Answers, state.ProfileAnswers);
+            user.PhoneConfirmed,
+            user.EmailConfirmed,
+            state.Answers,
+            state.ProfileAnswers,
+            state.PhotosComplete,
+            state.ConsentsAccepted,
+            state.LivenessPassed);
 
         return new RegistrationProgressDto(
             state.Draft,

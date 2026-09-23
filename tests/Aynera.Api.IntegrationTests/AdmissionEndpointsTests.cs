@@ -253,7 +253,10 @@ public sealed class AdmissionEndpointsTests(AuthApiFactory factory)
                 Gender = Gender.Female,
                 DateOfBirth = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-25),
                 City = city.Name,
-                CityId = city.Id
+                CityId = city.Id,
+                // Required since 20 Sep. Left empty, the row trips the hometown guard the next
+                // time a migration test replays that migration.
+                Hometown = "Pune"
             });
             // Submitting also requires preferences, so a fixture with a profile gets both.
             db.MemberPreferences.Add(new MemberPreferences

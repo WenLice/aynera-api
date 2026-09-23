@@ -119,10 +119,37 @@ public class RegistrationProgressTests
             phoneConfirmed: true,
             emailConfirmed: true,
             CompleteWithPreferences(),
-            AllCategoriesAnswered());
+            AllCategoriesAnswered(),
+            photosComplete: true,
+            consentsAccepted: true,
+            livenessPassed: true);
 
         Assert.Equal(RegistrationProgress.Ordered, completed);
         Assert.Null(RegistrationProgress.NextStep(completed));
+    }
+
+    /// <summary>
+    /// The face check, then photos (matched against it), then consent — a member is never sent past
+    /// an earlier one.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, false, RegistrationProgress.Liveness)]
+    [InlineData(true, false, true, RegistrationProgress.Liveness)]
+    [InlineData(false, true, false, RegistrationProgress.Photos)]
+    [InlineData(false, true, true, RegistrationProgress.Photos)]
+    [InlineData(true, true, false, RegistrationProgress.Consent)]
+    public void AfterTheQuestions_FaceCheckThenPhotosThenConsent(bool photos, bool liveness, bool consents, string expected)
+    {
+        var completed = RegistrationProgress.Completed(
+            phoneConfirmed: true,
+            emailConfirmed: true,
+            CompleteWithPreferences(),
+            AllCategoriesAnswered(),
+            photosComplete: photos,
+            consentsAccepted: consents,
+            livenessPassed: liveness);
+
+        Assert.Equal(expected, RegistrationProgress.NextStep(completed));
     }
 
     /// <summary>

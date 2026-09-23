@@ -10,4 +10,6 @@ public sealed record MemberPhotoRecord(
     bool IsReference,
     string FaceMatchStatus,
     decimal? FaceMatchScore,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    string? Caption = null,
+    string? StorageKey = null);

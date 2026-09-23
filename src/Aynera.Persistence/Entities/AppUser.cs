@@ -23,6 +23,5 @@ public sealed class AppUser : IdentityUser<Guid>, ISoftDeletable, IActivatable
 
     public ICollection<RefreshSession> RefreshSessions { get; set; } = new List<RefreshSession>();
     public MemberProfile? Profile { get; set; }
-    public ICollection<MemberPhoto> Photos { get; set; } = new List<MemberPhoto>();
-    public MemberIntroductionVideo? IntroductionVideo { get; set; }
+    public ICollection<MemberMedia> Media { get; set; } = new List<MemberMedia>();
 }

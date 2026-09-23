@@ -11,4 +11,6 @@ public sealed record IntroductionVideoRecord(
     string? GuidelineDetail,
     string? Transcript,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? UpdatedAtUtc);
+    DateTimeOffset? UpdatedAtUtc,
+    string? Caption = null,
+    string? StorageKey = null);

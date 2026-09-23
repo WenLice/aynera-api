@@ -78,7 +78,8 @@ public sealed class ApplicationMappingProfile : Profile
                 src.IsReference,
                 src.FaceMatchStatus,
                 src.FaceMatchScore,
-                src.CreatedAtUtc))
+                src.CreatedAtUtc,
+                src.Caption))
             .ForAllMembers(o => o.Ignore());
 
         CreateMap<IntroductionVideoRecord, IntroductionVideoDto>()
@@ -91,7 +92,8 @@ public sealed class ApplicationMappingProfile : Profile
                 src.GuidelinePassed,
                 src.GuidelineDetail,
                 src.CreatedAtUtc,
-                src.UpdatedAtUtc))
+                src.UpdatedAtUtc,
+                src.Caption))
             .ForAllMembers(o => o.Ignore());
 
         CreateMap<EarlyAccessCityRecord, EarlyAccessCityDto>()

@@ -58,10 +58,10 @@ public sealed class RegistrationStepsEndpointsTests(AuthApiFactory factory)
         var admission = await Body<MemberAdmissionDto>(await client.GetAsync("/admissions/me"));
         Assert.Equal("Draft", admission!.Data!.State);
 
-        // The same number can no longer start a registration.
+        // The same number no longer dead-ends with user_already_exists: since 22 Sep the phone step
+        // converges with sign-in, so a known active number is sent a sign-in code instead.
         var again = await factory.CreateClient().PostAsJsonAsync("/members/register/phone", new StartPhoneRegistrationRequest(phone));
-        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
-        Assert.Equal("user_already_exists", (await Body<object?>(again))!.ErrorCode);
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
 
         // 3. Ask for the email code.
         var startEmail = await client.PostAsJsonAsync("/members/me/email", new StartEmailVerificationRequest(email));

@@ -24,10 +24,13 @@ public static class RegistrationProgress
     public const string Lifestyle = "lifestyle";
     public const string Beliefs = "beliefs";
     public const string Vibe = "vibe";
+    public const string Photos = "photos";
+    public const string Liveness = "liveness";
+    public const string Consent = "consent";
 
     /// <summary>Registration order, matching the app's flow. Later steps append here.</summary>
     public static readonly IReadOnlyList<string> Ordered =
-        [Phone, Email, You, Self, Birth, Life, Looking, Intent, Lifestyle, Beliefs, Vibe];
+        [Phone, Email, You, Self, Birth, Life, Looking, Intent, Lifestyle, Beliefs, Vibe, Liveness, Photos, Consent];
 
     /// <summary>
     /// The answers a profile cannot be created without. Presence is only ever checked here and at
@@ -57,6 +60,9 @@ public static class RegistrationProgress
     /// Which steps are done, given the account's verification state and the answers so far.
     /// Absent evidence never counts as satisfied, matching the eligibility evaluator's contract.
     /// </summary>
+    /// <param name="photosComplete">Every photo slot the app asks for is filled.</param>
+    /// <param name="livenessPassed">The latest face check was live and matched the reference photo.</param>
+    /// <param name="consentsAccepted">Every required policy document is accepted at its current version.</param>
     /// <param name="profileAnswers">
     /// The everyday, belief and vibe answers. Every question in them is optional, so a category
     /// counts as done once it holds anything at all — there is no other way to tell "answered
@@ -67,7 +73,10 @@ public static class RegistrationProgress
         bool phoneConfirmed,
         bool emailConfirmed,
         RegistrationAnswers answers,
-        MemberProfileAnswersRecord? profileAnswers = null)
+        MemberProfileAnswersRecord? profileAnswers = null,
+        bool photosComplete = false,
+        bool consentsAccepted = false,
+        bool livenessPassed = false)
     {
         var done = new List<string>(Ordered.Count);
 
@@ -97,6 +106,18 @@ public static class RegistrationProgress
             if (profileAnswers.Beliefs.Count > 0) done.Add(Beliefs);
             if (profileAnswers.Vibe.Count > 0) done.Add(Vibe);
         }
+
+        // Only a pass counts: a member whose face check was not live is sent back to it rather than
+        // past it. It comes before the photos, which are matched against the face it verified.
+        if (livenessPassed) done.Add(Liveness);
+
+        // Tracked here so a member who leaves after the face check reopens on their photos rather
+        // than being sent past them to the consent page.
+        if (photosComplete) done.Add(Photos);
+
+        // Every required document accepted at its current version — the same rule eligibility uses
+        // (ConsentRules), so the two can never disagree about whether the member has agreed.
+        if (consentsAccepted) done.Add(Consent);
 
         return done;
     }

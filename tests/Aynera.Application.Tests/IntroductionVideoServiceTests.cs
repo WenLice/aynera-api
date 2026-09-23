@@ -16,9 +16,9 @@ namespace Aynera.Application.Tests;
 public class IntroductionVideoServiceTests
 {
     [Fact]
-    public async Task Upload_WithoutReferencePhoto_Throws()
+    public async Task Upload_BeforeTheFaceCheck_Throws()
     {
-        var service = CreateService(new InMemoryPhotoRepo(), new InMemoryVideoRepo());
+        var service = CreateService(new InMemoryPhotoRepo(), new InMemoryVideoRepo(), verified: FixedVerifiedFace.NotVerified);
         await using var stream = new MemoryStream([1, 2, 3, 4]);
 
         var ex = await Assert.ThrowsAsync<VideoException>(() =>
@@ -27,7 +27,7 @@ public class IntroductionVideoServiceTests
                 new VideoUploadInput(stream, "intro.mp4", "video/mp4", 4),
                 CancellationToken.None));
 
-        Assert.Equal("video_reference_photo_required", ex.ErrorCode);
+        Assert.Equal("video_face_check_required", ex.ErrorCode);
     }
 
     [Fact]
@@ -104,7 +104,8 @@ public class IntroductionVideoServiceTests
         IMemberPhotoRepository photos,
         IIntroductionVideoRepository videos,
         string stubTranscript = "",
-        Aynera.Application.Features.Media.Services.Interfaces.IMediaAuthenticityService? authenticity = null) =>
+        Aynera.Application.Features.Media.Services.Interfaces.IMediaAuthenticityService? authenticity = null,
+        FixedVerifiedFace? verified = null) =>
         new(
             videos,
             photos,
@@ -126,7 +127,9 @@ public class IntroductionVideoServiceTests
                 MaxBytes = 25 * 1024 * 1024,
                 StubTranscript = stubTranscript,
                 BannedWords = ["kill", "suicide", "terrorist", "nude", "porn", "rape", "molest"]
-            }));
+            }),
+            NullMediaStorage.Instance,
+            verified ?? FixedVerifiedFace.Verified);
 }
 
 file sealed class AlwaysAuthenticVideoMediaService : Aynera.Application.Features.Media.Services.Interfaces.IMediaAuthenticityService
@@ -193,6 +196,9 @@ file sealed class FixedTranscriptService(string transcript) : ISpeechTranscripti
 
 file sealed class InMemoryPhotoRepo : IMemberPhotoRepository
 {
+    public Task UpdateCaptionAsync(Guid userId, Guid photoId, string? caption, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     private readonly Dictionary<Guid, MemberPhotoRecord> _refs = new();
 
     public void AddReference(Guid userId) =>
@@ -253,10 +259,16 @@ file sealed class InMemoryPhotoRepo : IMemberPhotoRepository
 
 file sealed class InMemoryVideoRepo : IIntroductionVideoRepository
 {
+    public Task UpdateCaptionAsync(Guid userId, string? caption, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     public List<IntroductionVideoRecord> All { get; } = [];
 
     public Task<IntroductionVideoRecord?> FindByUserIdAsync(Guid userId, CancellationToken cancellationToken) =>
         Task.FromResult(All.FirstOrDefault(x => x.UserId == userId));
+
+    public Task<byte[]?> ReadContentAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult(All.FirstOrDefault(x => x.UserId == userId)?.Data);
 
     public Task<IntroductionVideoRecord> UpsertAsync(
         IntroductionVideoRecord video,

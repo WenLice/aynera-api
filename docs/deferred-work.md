@@ -6,14 +6,14 @@ Early API slice only. Items below are **intentional later** — not current defe
 
 | Item | Notes |
 |------|--------|
-| **Postgres `bytea` for photos/videos** | Temporary until dedicated server / object storage is available. Fine for the current few APIs. |
-| **Move off DB blobs** | After server purchase: store media on disk or object storage; keep metadata in Postgres. Re-check CDN, signed URLs, backup size. |
+| **~~Postgres `bytea` for photos/videos~~** | Done 2026-09-23: media moved to Cloudflare R2; `MemberMedia` holds keys only. |
+| **Purge files of deleted media** | Soft deletes (single photo, video, account deletion) leave the file in R2 — account deletion runs in a DB transaction the bucket cannot join. A reused slot overwrites its file; everything else needs a purge job. |
 
 ## Soft-deleted / account-deleted media
 
 | Item | Notes |
 |------|--------|
-| **Space after soft-delete** | Soft-deleted rows may still hold bytes in Postgres. Not a problem at current scale. |
+| **Space after soft-delete** | See the purge job above — the bytes now sit in R2, not Postgres. |
 | **Background job (planned)** | When an **account is deleted**, run a job that **compresses** related media and stores it in a **secure place** (cold/archive). Then purge hot DB blobs. Re-check: encryption at rest, retention policy, restore/legal hold, job failure retries. |
 
 ## Related later items

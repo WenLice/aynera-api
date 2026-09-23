@@ -1,4 +1,15 @@
+using Aynera.Application.Features.Admissions.Models;
+using Aynera.Application.Features.Admissions.Repositories;
 using Aynera.Application.Features.Answers.Repositories;
+using Aynera.Application.Features.Liveness.Repositories;
+using Aynera.Domain.Liveness.Enums;
+using Aynera.Domain.Liveness.Records;
+using Aynera.Application.Features.Photos.Models;
+using Aynera.Application.Features.Photos.Repositories;
+using Aynera.Domain.Admissions.Enums;
+using Aynera.Domain.Admissions.Records;
+using Aynera.Domain.Photos.Records;
+using Microsoft.Extensions.Options;
 using Aynera.Application.Features.Registration.Repositories;
 using Aynera.Application.Features.Registration.Services.Implementations;
 using Aynera.Application.Features.Preferences.Services.Interfaces;
@@ -38,6 +49,9 @@ public class RegistrationDraftServiceTests
         public FakeProfileAnswersRepository Answers { get; } = new();
         public StubRegistrationService Registration { get; }
         public StubPreferencesService PreferencesService { get; }
+        public CountedPhotos Photos { get; } = new();
+        public ListedConsents Consents { get; } = new();
+        public LatestLiveness Liveness { get; } = new();
         public RegistrationDraftService Service { get; }
 
         public Harness()
@@ -46,6 +60,7 @@ public class RegistrationDraftServiceTests
             PreferencesService = new StubPreferencesService(Preferences);
             Service = new RegistrationDraftService(
                 Users, Profiles, Preferences, Answers, Drafts, Registration, PreferencesService,
+                Photos, Consents, Liveness, Options.Create(new PhotoOptions()), Options.Create(new AdmissionOptions()),
                 TestMapper.Instance, DiscardLogger<RegistrationDraftService>.Instance);
         }
 
@@ -334,9 +349,130 @@ public class RegistrationDraftServiceTests
         Assert.Equal(RegistrationProgress.Lifestyle, done.NextStep);
     }
 
-    /// <summary>The whole walk: nothing outstanding only once every category has been answered too.</summary>
+    /// <summary>After the vibe pages the member is sent to their photos, never past them to consent.</summary>
     [Fact]
-    public async Task EveryStepAnswered_HasNoNextStep()
+    public async Task EveryPageAnswered_ResumesAtTheFaceCheck()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+
+        var progress = await h.Service.GetAsync(id, default);
+
+        Assert.Equal(RegistrationProgress.Liveness, progress.NextStep);
+    }
+
+    [Fact]
+    public async Task FaceCheckPassed_ResumesAtPhotos()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        h.Liveness.Set(id, LivenessOutcome.Passed);
+
+        var progress = await h.Service.GetAsync(id, default);
+
+        Assert.Equal(RegistrationProgress.Photos, progress.NextStep);
+        Assert.Contains(RegistrationProgress.Liveness, progress.Completed);
+    }
+
+    /// <summary>Only a pass moves the member on, even with photos already in place.</summary>
+    [Theory]
+    [InlineData(LivenessOutcome.NotLive)]
+    [InlineData(LivenessOutcome.FaceMismatch)]
+    [InlineData(LivenessOutcome.Expired)]
+    public async Task FaceCheckThatDidNotPass_KeepsTheMemberOnIt(LivenessOutcome outcome)
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        h.Photos.Count = new PhotoOptions().MaxCount;
+        h.Liveness.Set(id, outcome);
+
+        Assert.Equal(RegistrationProgress.Liveness, (await h.Service.GetAsync(id, default)).NextStep);
+    }
+
+    [Fact]
+    public async Task FaceCheckPassed_AndPhotosFilled_ResumesAtConsent()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        h.Photos.Count = new PhotoOptions().MaxCount;
+        h.Liveness.Set(id, LivenessOutcome.Passed);
+
+        Assert.Equal(RegistrationProgress.Consent, (await h.Service.GetAsync(id, default)).NextStep);
+    }
+
+    [Fact]
+    public async Task OneSlotShort_IsNotPhotosDone()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        h.Liveness.Set(id, LivenessOutcome.Passed);
+        h.Photos.Count = new PhotoOptions().MaxCount - 1;
+
+        Assert.Equal(RegistrationProgress.Photos, (await h.Service.GetAsync(id, default)).NextStep);
+    }
+
+    /// <summary>
+    /// Consent counts only when every required document is accepted, each at its current version:
+    /// the same rule eligibility applies, so resume and review cannot disagree.
+    /// </summary>
+    [Fact]
+    public async Task ConsentStep_NeedsEveryDocument_AtItsCurrentVersion()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        h.Photos.Count = new PhotoOptions().MaxCount;
+        h.Liveness.Set(id, LivenessOutcome.Passed);
+
+        h.Consents.Accept(id, ConsentPolicyKind.Terms, "1.0");
+        h.Consents.Accept(id, ConsentPolicyKind.Privacy, "1.0");
+        Assert.Equal(RegistrationProgress.Consent, (await h.Service.GetAsync(id, default)).NextStep);
+
+        // An older version of the missing document is not agreement to the current one.
+        h.Consents.Accept(id, ConsentPolicyKind.CommunityGuidelines, "0.9");
+        Assert.Equal(RegistrationProgress.Consent, (await h.Service.GetAsync(id, default)).NextStep);
+
+        h.Consents.Accept(id, ConsentPolicyKind.CommunityGuidelines, "1.0");
+        var done = await h.Service.GetAsync(id, default);
+        Assert.Null(done.NextStep);
+        Assert.Equal(RegistrationProgress.Ordered, done.Completed);
+    }
+
+    /// <summary>A page saved after consent must not report the consent as undone.</summary>
+    [Fact]
+    public async Task PageSavedAfterConsent_KeepsConsentDone()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        h.Photos.Count = new PhotoOptions().MaxCount;
+        h.Liveness.Set(id, LivenessOutcome.Passed);
+        h.Consents.Accept(id, ConsentPolicyKind.Terms, "1.0");
+        h.Consents.Accept(id, ConsentPolicyKind.Privacy, "1.0");
+        h.Consents.Accept(id, ConsentPolicyKind.CommunityGuidelines, "1.0");
+
+        var edited = await h.Service.PatchAsync(id, new UpdateRegistrationRequest(Work: "Architect"), default);
+
+        Assert.Null(edited.NextStep);
+        Assert.Contains(RegistrationProgress.Consent, edited.Completed);
+    }
+
+    private static async Task<Guid> AnswerEveryPageAsync(Harness h)
+    {
+        var id = h.AddMember();
+        await h.Service.PatchAsync(id, CompletePage(), default);
+        await h.Service.PatchAsync(id, CompletePreferences(), default);
+        await h.Service.PatchAsync(
+            id,
+            new UpdateRegistrationRequest(
+                Lifestyle: new Dictionary<string, MemberAnswer> { ["drink"] = new("no") },
+                Beliefs: new Dictionary<string, MemberAnswer> { ["faith"] = new("not-religious") },
+                Vibe: ["reading"]),
+            default);
+        return id;
+    }
+
+    /// <summary>The whole question walk leaves only photos, the face check and consent outstanding.</summary>
+    [Fact]
+    public async Task EveryPageAnswered_LeavesTheFaceCheckPhotosAndConsent()
     {
         var h = new Harness();
         var id = h.AddMember();
@@ -351,8 +487,11 @@ public class RegistrationDraftServiceTests
                 Vibe: ["reading"]),
             default);
 
-        Assert.Null(done.NextStep);
-        Assert.Equal(RegistrationProgress.Ordered, done.Completed);
+        Assert.Equal(RegistrationProgress.Liveness, done.NextStep);
+        Assert.Equal(
+            RegistrationProgress.Ordered.Except(
+                [RegistrationProgress.Photos, RegistrationProgress.Liveness, RegistrationProgress.Consent]),
+            done.Completed);
     }
 
     // ---- everyday, belief and vibe answers, pages 23 to 34 ---------------------------------
@@ -760,4 +899,57 @@ internal sealed class StubRegistrationService : IRegistrationService
     public Task<AuthAccountDto> VerifyEmailCodeAsync(
         Guid userId, VerifyEmailCodeRequest request, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+}
+
+/// <summary>Only the count matters to registration progress; nothing else is called.</summary>
+internal sealed class CountedPhotos : IMemberPhotoRepository
+{
+    public Task UpdateCaptionAsync(Guid userId, Guid photoId, string? caption, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
+    public int Count { get; set; }
+
+    public Task<int> CountByUserIdAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(Count);
+
+    public Task<IReadOnlyList<MemberPhotoRecord>> ListByUserIdAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<MemberPhotoRecord?> FindByIdAsync(Guid userId, Guid photoId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<MemberPhotoRecord?> FindReferenceAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<int> NextSortOrderAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<MemberPhotoRecord> AddAsync(MemberPhotoRecord photo, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task SoftDeleteAsync(Guid userId, Guid photoId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task SoftDeleteAllForUserAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task PromoteNextReferenceAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+}
+
+internal sealed class ListedConsents : IMemberConsentRepository
+{
+    private readonly List<MemberConsentRecord> _rows = [];
+
+    public void Accept(Guid userId, ConsentPolicyKind kind, string version) =>
+        _rows.Add(new MemberConsentRecord(Guid.NewGuid(), userId, kind, version, DateTimeOffset.UtcNow));
+
+    public Task<IReadOnlyList<MemberConsentRecord>> ListByUserIdAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<MemberConsentRecord>>(_rows.Where(r => r.UserId == userId).ToList());
+
+    public Task<MemberConsentRecord> AcceptAsync(MemberConsentRecord consent, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Registration progress only asks for the latest finished session.</summary>
+internal sealed class LatestLiveness : ILivenessRepository
+{
+    private readonly Dictionary<Guid, LivenessSessionRecord> _latest = new();
+
+    public void Set(Guid userId, LivenessOutcome outcome) =>
+        _latest[userId] = new LivenessSessionRecord(
+            "s-" + Guid.NewGuid().ToString("N"), userId, outcome.ToString(), 99m, 95m,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+    public Task<LivenessSessionRecord?> FindLatestCompletedAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult(_latest.TryGetValue(userId, out var record) ? record : null);
+
+    public Task AddSessionAsync(LivenessSessionRecord session, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<LivenessSessionRecord?> FindSessionAsync(string sessionId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdateSessionAsync(LivenessSessionRecord session, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task SaveSelfieAsync(Guid userId, byte[] jpeg, string faceMatchStatus, decimal? similarity, CancellationToken cancellationToken) => throw new NotSupportedException();
 }

@@ -9,6 +9,9 @@ namespace Aynera.Application.Tests;
 
 internal sealed class FakePhotoReads : IPhotoService
 {
+    public Task UpdateCaptionAsync(Guid userId, Guid photoId, string? caption, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     public Task<IReadOnlyList<MemberPhotoDto>> ListAsync(Guid userId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<MemberPhotoDto>>([]);
 
@@ -24,6 +27,9 @@ internal sealed class FakePhotoReads : IPhotoService
 
 internal sealed class FakeVideoReads : IIntroductionVideoService
 {
+    public Task UpdateCaptionAsync(Guid userId, string? caption, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     public Task<IntroductionVideoDto?> GetAsync(Guid userId, CancellationToken cancellationToken) =>
         Task.FromResult<IntroductionVideoDto?>(null);
 

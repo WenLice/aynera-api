@@ -212,7 +212,7 @@ Bound mainly under `Aynera:*` in `appsettings.json` / environment:
 
 See `.env.example` and [setup.md](./setup.md).
 
-**Media storage:** photos/videos use Postgres `bytea` temporarily (until dedicated server / object storage). Soft-delete space and account-delete archive job are deferred — see [deferred-work.md](./deferred-work.md).
+**Media storage:** photos and videos live in Cloudflare R2 (`IMediaStorage`; in-memory under the Testing environment), one folder per member — `{userId}/photo_N.jpg`, `{userId}/intro_video.ext`. `MemberMedia` holds keys only. The API refuses to start outside Testing when `Aynera:R2` is incomplete. Purging files of soft-deleted media is deferred.
 
 **Email / SMS:** live in **Aynera.Notifications** behind `IEmailService` / `ISmsService`. `Provider` = `Console` (default), `Smtp`, or `Textbelt`. Never logs OTP, phones, emails, or verify URLs. Api registers `AddAyneraNotifications`. Integration tests replace with capturing doubles.
 

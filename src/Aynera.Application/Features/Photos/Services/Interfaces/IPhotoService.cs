@@ -18,4 +18,7 @@ public interface IPhotoService
         CancellationToken cancellationToken);
 
     Task DeleteAsync(Guid userId, Guid photoId, CancellationToken cancellationToken);
+
+    /// <summary>Sets or clears one photo's caption without re-uploading the image.</summary>
+    Task UpdateCaptionAsync(Guid userId, Guid photoId, string? caption, CancellationToken cancellationToken);
 }

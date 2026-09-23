@@ -1,3 +1,4 @@
+using Aynera.Domain.Admissions.Statics;
 using Aynera.Application.Features.Admissions.Models;
 using Aynera.Application.Features.Admissions.Repositories;
 using Aynera.Application.Features.Admissions.Services.Interfaces;
@@ -112,16 +113,9 @@ public sealed class MemberEligibilityEvaluator : IMemberEligibilityEvaluator
         }
 
         var accepted = await _consents.ListByUserIdAsync(userId, cancellationToken);
-        foreach (var (policyKind, requiredVersion) in RequiredConsents())
+        foreach (var policyKind in ConsentRules.Missing(_options.RequiredConsentVersions, accepted))
         {
-            var satisfied = accepted.Any(c =>
-                c.PolicyKind == policyKind
-                && string.Equals(c.Version, requiredVersion, StringComparison.OrdinalIgnoreCase));
-
-            if (!satisfied)
-            {
-                unmet.Add(EligibilityReasons.ConsentMissing(policyKind.ToString()));
-            }
+            unmet.Add(EligibilityReasons.ConsentMissing(policyKind.ToString()));
         }
 
         if (await _identity.HasRejectedFaceMatchAsync(userId, cancellationToken))
@@ -133,20 +127,4 @@ public sealed class MemberEligibilityEvaluator : IMemberEligibilityEvaluator
     }
 
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
-
-    /// <summary>
-    /// Configured requirements, ignoring any entry whose key is not a known policy document so a
-    /// configuration typo cannot silently become an unsatisfiable requirement.
-    /// </summary>
-    private IEnumerable<(ConsentPolicyKind PolicyKind, string Version)> RequiredConsents()
-    {
-        foreach (var (key, version) in _options.RequiredConsentVersions)
-        {
-            if (!string.IsNullOrWhiteSpace(version)
-                && AdmissionValidation.TryParseConsentKind(key, out var kind))
-            {
-                yield return (kind, version.Trim());
-            }
-        }
-    }
 }

@@ -1,3 +1,6 @@
+using Aynera.Application.Features.Media.Storage;
+using Aynera.Application.Features.Liveness.Services.Interfaces;
+using Aynera.Domain.Media.Statics;
 using AutoMapper;
 using Aynera.Application.Features.Audit.Services.Interfaces;
 using Aynera.Application.Features.Media.Services.Interfaces;
@@ -19,6 +22,12 @@ namespace Aynera.Application.Features.Videos.Services.Implementations;
 
 public sealed class IntroductionVideoService : IIntroductionVideoService
 {
+    /// <summary>How long a signed playback link stays valid.</summary>
+    private static readonly TimeSpan ReadUrlLifetime = TimeSpan.FromHours(1);
+
+    private readonly IMediaStorage _storage;
+    private readonly IVerifiedFaceProvider _verifiedFace;
+
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "video/mp4",
@@ -49,8 +58,12 @@ public sealed class IntroductionVideoService : IIntroductionVideoService
         IMapper mapper,
         IAuditWriter audit,
         ILogger<IntroductionVideoService> logger,
-        IOptions<IntroductionVideoOptions> options)
+        IOptions<IntroductionVideoOptions> options,
+        IMediaStorage storage,
+        IVerifiedFaceProvider verifiedFace)
     {
+        _storage = storage;
+        _verifiedFace = verifiedFace;
         _videos = videos;
         _photos = photos;
         _faceMatch = faceMatch;
@@ -82,6 +95,13 @@ public sealed class IntroductionVideoService : IIntroductionVideoService
                 $"Introduction video must be at most {_options.MaxBytes / (1024 * 1024)} MB.");
         }
 
+        if (file.Caption is { Length: > MemberMediaRules.CaptionMaxLength })
+        {
+            throw new VideoException(
+                "video_caption_too_long",
+                $"A caption can be at most {MemberMediaRules.CaptionMaxLength} characters.");
+        }
+
         var contentType = (file.ContentType ?? string.Empty).Split(';', 2)[0].Trim();
         if (string.IsNullOrWhiteSpace(contentType) || !AllowedContentTypes.Contains(contentType))
         {
@@ -90,10 +110,11 @@ public sealed class IntroductionVideoService : IIntroductionVideoService
                 "Only MP4, WebM, and QuickTime videos are allowed.");
         }
 
-        var reference = await _photos.FindReferenceAsync(userId, cancellationToken)
+        // Matched against the face the member proved live, like the photos.
+        var reference = await _verifiedFace.GetAsync(userId, cancellationToken)
             ?? throw new VideoException(
-                "video_reference_photo_required",
-                "Upload a reference profile photo before your introduction video.");
+                "video_face_check_required",
+                "Complete the face check first — your video is matched to it.");
 
         await using var buffer = new MemoryStream();
         await file.Content.CopyToAsync(buffer, cancellationToken);
@@ -122,7 +143,7 @@ public sealed class IntroductionVideoService : IIntroductionVideoService
         {
             throw new VideoException(
                 "video_face_mismatch",
-                face.Detail ?? "Introduction video does not appear to match your reference photo.");
+                face.Detail ?? "Introduction video does not appear to match your verified face.");
         }
 
         buffer.Position = 0;
@@ -149,7 +170,8 @@ public sealed class IntroductionVideoService : IIntroductionVideoService
                 GuidelineDetail: guideline.Detail,
                 Transcript: string.IsNullOrWhiteSpace(transcript) ? null : transcript.Trim(),
                 CreatedAtUtc: existing?.CreatedAtUtc ?? now,
-                UpdatedAtUtc: existing is null ? null : now),
+                UpdatedAtUtc: existing is null ? null : now,
+                Caption: NormalizeCaption(file.Caption)),
             cancellationToken);
 
         await _audit.WriteAsync(
@@ -169,13 +191,13 @@ public sealed class IntroductionVideoService : IIntroductionVideoService
                 }),
             cancellationToken);
 
-        return _mapper.Map<IntroductionVideoDto>(record);
+        return ToDto(record);
     }
 
     public async Task<IntroductionVideoDto?> GetAsync(Guid userId, CancellationToken cancellationToken)
     {
         var video = await _videos.FindByUserIdAsync(userId, cancellationToken);
-        return video is null ? null : _mapper.Map<IntroductionVideoDto>(video);
+        return video is null ? null : ToDto(video);
     }
 
     public async Task<IntroductionVideoBytes> GetBytesAsync(
@@ -185,7 +207,15 @@ public sealed class IntroductionVideoService : IIntroductionVideoService
         var video = await _videos.FindByUserIdAsync(userId, cancellationToken)
             ?? throw new VideoException("video_not_found", "Introduction video not found.", statusCode: 404);
 
-        return new IntroductionVideoBytes(video.UserId, video.ContentType, video.Data);
+        // A row whose file is missing from the bucket is reported as not found rather than served
+        // as an empty video the player would fail on silently.
+        var data = await _videos.ReadContentAsync(userId, cancellationToken);
+        if (data is null || data.Length == 0)
+        {
+            throw new VideoException("video_not_found", "Introduction video not found.", statusCode: 404);
+        }
+
+        return new IntroductionVideoBytes(video.UserId, video.ContentType, data);
     }
 
     public async Task DeleteAsync(Guid userId, CancellationToken cancellationToken)
@@ -206,4 +236,27 @@ public sealed class IntroductionVideoService : IIntroductionVideoService
                 SubjectId: userId.ToString("D")),
             cancellationToken);
     }
+
+    public async Task UpdateCaptionAsync(Guid userId, string? caption, CancellationToken cancellationToken)
+    {
+        if (caption is { Length: > MemberMediaRules.CaptionMaxLength })
+        {
+            throw new VideoException(
+                "video_caption_too_long",
+                $"A caption can be at most {MemberMediaRules.CaptionMaxLength} characters.");
+        }
+
+        await _videos.UpdateCaptionAsync(userId, NormalizeCaption(caption), cancellationToken);
+    }
+
+    private IntroductionVideoDto ToDto(IntroductionVideoRecord record) =>
+        _mapper.Map<IntroductionVideoDto>(record) with
+        {
+            Url = string.IsNullOrEmpty(record.StorageKey)
+                ? null
+                : _storage.GetReadUrl(record.StorageKey, ReadUrlLifetime),
+        };
+
+    private static string? NormalizeCaption(string? caption) =>
+        string.IsNullOrWhiteSpace(caption) ? null : caption.Trim();
 }

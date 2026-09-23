@@ -1,3 +1,4 @@
+using Aynera.Domain.Media.Statics;
 using Aynera.Domain.Photos.Enums;
 using Aynera.Persistence.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -20,8 +21,8 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
     public DbSet<MemberProfileAnswers> MemberProfileAnswers => Set<MemberProfileAnswers>();
     public DbSet<MemberAdmission> MemberAdmissions => Set<MemberAdmission>();
     public DbSet<MemberConsent> MemberConsents => Set<MemberConsent>();
-    public DbSet<MemberPhoto> MemberPhotos => Set<MemberPhoto>();
-    public DbSet<MemberIntroductionVideo> MemberIntroductionVideos => Set<MemberIntroductionVideo>();
+    public DbSet<MemberMedia> MemberMedia => Set<MemberMedia>();
+    public DbSet<LivenessSession> LivenessSessions => Set<LivenessSession>();
     public DbSet<EarlyAccessSignup> EarlyAccessSignups => Set<EarlyAccessSignup>();
     public DbSet<EarlyAccessCity> EarlyAccessCities => Set<EarlyAccessCity>();
     public DbSet<Venue> Venues => Set<Venue>();
@@ -232,35 +233,14 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        builder.Entity<MemberPhoto>(entity =>
+        builder.Entity<MemberMedia>(entity =>
         {
-            entity.ToTable("MemberPhotos");
+            entity.ToTable("MemberMedia");
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.StorageKey).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.Caption).HasMaxLength(MemberMediaRules.CaptionMaxLength);
             entity.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.Data).IsRequired();
-            entity.Property(x => x.FaceMatchStatus)
-                .HasConversion<string>()
-                .HasMaxLength(32)
-                .IsRequired();
-            entity.Property(x => x.FaceMatchScore).HasPrecision(5, 2);
-            entity.Property(x => x.CreatedAtUtc).IsRequired();
-            entity.HasIndex(x => x.UserId);
-            entity.HasIndex(x => new { x.UserId, x.SortOrder });
-            entity.HasIndex(x => x.IsDeleted);
-            entity.HasQueryFilter(x => !x.IsDeleted);
-
-            entity.HasOne(x => x.User)
-                .WithMany(x => x.Photos)
-                .HasForeignKey(x => x.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        builder.Entity<MemberIntroductionVideo>(entity =>
-        {
-            entity.ToTable("MemberIntroductionVideos");
-            entity.HasKey(x => x.UserId);
-            entity.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.Data).IsRequired();
             entity.Property(x => x.FaceMatchStatus)
                 .HasConversion<string>()
                 .HasMaxLength(32)
@@ -269,12 +249,43 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
             entity.Property(x => x.GuidelineDetail).HasMaxLength(500);
             entity.Property(x => x.Transcript).HasMaxLength(4000);
             entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.HasIndex(x => x.UserId);
             entity.HasIndex(x => x.IsDeleted);
+
+            // One live photo per slot, and one live video of each kind. Soft-deleted rows are
+            // history and do not hold the place.
+            entity.HasIndex(x => new { x.UserId, x.Kind, x.Index })
+                .IsUnique()
+                .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NOT NULL");
+            entity.HasIndex(x => new { x.UserId, x.Kind })
+                .IsUnique()
+                .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NULL");
+
             entity.HasQueryFilter(x => !x.IsDeleted);
 
             entity.HasOne(x => x.User)
-                .WithOne(x => x.IntroductionVideo)
-                .HasForeignKey<MemberIntroductionVideo>(x => x.UserId)
+                .WithMany(x => x.Media)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<LivenessSession>(entity =>
+        {
+            entity.ToTable("LivenessSessions");
+            entity.HasKey(x => x.SessionId);
+            entity.Property(x => x.SessionId).HasMaxLength(100);
+            entity.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.Confidence).HasPrecision(6, 3);
+            entity.Property(x => x.Similarity).HasPrecision(6, 3);
+            entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.HasIndex(x => new { x.UserId, x.CompletedAtUtc });
+
+            // Follows the account, like the registration draft: a deleted member's sessions stop reading.
+            entity.HasQueryFilter(x => !x.User.IsDeleted);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

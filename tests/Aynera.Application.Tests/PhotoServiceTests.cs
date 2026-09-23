@@ -26,7 +26,7 @@ public class PhotoServiceTests
 
         Assert.Single(result);
         Assert.True(result[0].IsReference);
-        Assert.Equal(FaceMatchStatus.Pending.ToString(), result[0].FaceMatchStatus);
+        Assert.Equal(FaceMatchStatus.Matched.ToString(), result[0].FaceMatchStatus);
     }
 
     [Fact]
@@ -53,26 +53,61 @@ public class PhotoServiceTests
     }
 
     [Fact]
-    public async Task Upload_RejectedFaceMatch_Throws()
+    public async Task Upload_BeforeTheFaceCheck_IsRefused()
     {
-        var photos = new InMemoryPhotoRepository();
-        var userId = Guid.NewGuid();
-        var service = CreateService(photos, stubStatus: FaceMatchStatus.Rejected);
+        var service = CreateService(new InMemoryPhotoRepository(), verified: FixedVerifiedFace.NotVerified);
 
-        await using var first = new MemoryStream([1]);
-        await service.UploadAsync(
-            userId,
-            [new PhotoUploadInput(first, "a.jpg", "image/jpeg", 1)],
-            CancellationToken.None);
-
-        await using var second = new MemoryStream([2]);
+        await using var stream = new MemoryStream([1]);
         var ex = await Assert.ThrowsAsync<PhotoException>(() =>
-            service.UploadAsync(
-                userId,
-                [new PhotoUploadInput(second, "b.jpg", "image/jpeg", 1)],
-                CancellationToken.None));
+            service.UploadAsync(Guid.NewGuid(), [new PhotoUploadInput(stream, "a.jpg", "image/jpeg", 1)], CancellationToken.None));
+
+        Assert.Equal("photo_face_check_required", ex.ErrorCode);
+    }
+
+    /// <summary>Slots 1 and 2 must show the member; someone else is refused.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task MustMatchSlot_SomeoneElse_IsRefused(int slot)
+    {
+        var service = CreateService(new InMemoryPhotoRepository(), stubStatus: FaceMatchStatus.Rejected);
+
+        await using var stream = new MemoryStream([1]);
+        var ex = await Assert.ThrowsAsync<PhotoException>(() =>
+            service.UploadAsync(Guid.NewGuid(), [new PhotoUploadInput(stream, "a.jpg", "image/jpeg", 1, Slot: slot)], CancellationToken.None));
 
         Assert.Equal("photo_face_mismatch", ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task MustMatchSlot_WithNoFace_AsksForAFace()
+    {
+        var service = CreateService(new InMemoryPhotoRepository(), stubStatus: FaceMatchStatus.Skipped);
+
+        await using var stream = new MemoryStream([1]);
+        var ex = await Assert.ThrowsAsync<PhotoException>(() =>
+            service.UploadAsync(Guid.NewGuid(), [new PhotoUploadInput(stream, "a.jpg", "image/jpeg", 1, Slot: 1)], CancellationToken.None));
+
+        Assert.Equal("photo_face_required", ex.ErrorCode);
+    }
+
+    /// <summary>
+    /// "Your world", "something you love": a friend's face is allowed. It is recorded as Skipped, so a
+    /// curator can see it is not the member without it counting as an identity rejection.
+    /// </summary>
+    [Theory]
+    [InlineData(3, FaceMatchStatus.Rejected, FaceMatchStatus.Skipped)]
+    [InlineData(4, FaceMatchStatus.Skipped, FaceMatchStatus.Skipped)]
+    [InlineData(5, FaceMatchStatus.Matched, FaceMatchStatus.Matched)]
+    public async Task FreeSlot_IsNeverBlocked_AndRecordsWhatItFound(int slot, FaceMatchStatus found, FaceMatchStatus recorded)
+    {
+        var service = CreateService(new InMemoryPhotoRepository(), stubStatus: found);
+
+        await using var stream = new MemoryStream([1]);
+        var result = await service.UploadAsync(
+            Guid.NewGuid(), [new PhotoUploadInput(stream, "a.jpg", "image/jpeg", 1, Slot: slot)], CancellationToken.None);
+
+        Assert.Equal(recorded.ToString(), Assert.Single(result).FaceMatchStatus);
     }
 
     [Fact]
@@ -95,7 +130,8 @@ public class PhotoServiceTests
         IMemberPhotoRepository photos,
         int maxCount = 6,
         FaceMatchStatus stubStatus = FaceMatchStatus.Matched,
-        Aynera.Application.Features.Media.Services.Interfaces.IMediaAuthenticityService? authenticity = null) =>
+        Aynera.Application.Features.Media.Services.Interfaces.IMediaAuthenticityService? authenticity = null,
+        FixedVerifiedFace? verified = null) =>
         new(
             photos,
             new PassthroughImageProcessor(),
@@ -109,7 +145,9 @@ public class PhotoServiceTests
                 MaxCount = maxCount,
                 MaxBytes = 5 * 1024 * 1024,
                 StubFaceMatchStatus = stubStatus.ToString()
-            }));
+            }),
+            NullMediaStorage.Instance,
+            verified ?? FixedVerifiedFace.Verified);
 }
 
 file sealed class AlwaysAuthenticMediaService : Aynera.Application.Features.Media.Services.Interfaces.IMediaAuthenticityService
@@ -178,6 +216,9 @@ file sealed class ConfigurableFaceMatchService(FaceMatchStatus status) : IFaceMa
 
 file sealed class InMemoryPhotoRepository : IMemberPhotoRepository
 {
+    public Task UpdateCaptionAsync(Guid userId, Guid photoId, string? caption, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     private readonly List<MemberPhotoRecord> _photos = [];
 
     public Task<int> CountByUserIdAsync(Guid userId, CancellationToken cancellationToken) =>

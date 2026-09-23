@@ -41,6 +41,7 @@ public static class AuditActions
     public const string PhotosUploaded = "photos_uploaded";
     public const string PhotoDeleted = "photo_deleted";
     public const string IntroVideoUploaded = "intro_video_uploaded";
+    public const string LivenessChecked = "liveness_checked";
     public const string IntroVideoDeleted = "intro_video_deleted";
     public const string AdminCreated = "admin_created";
     public const string AdminDeactivated = "admin_deactivated";
@@ -56,6 +57,7 @@ public static class AuditSubjectTypes
     public const string EarlyAccessSignup = "early_access_signup";
     public const string MemberPhoto = "member_photo";
     public const string IntroductionVideo = "introduction_video";
+    public const string LivenessSession = "liveness_session";
 }
 
 public static class AuditClients

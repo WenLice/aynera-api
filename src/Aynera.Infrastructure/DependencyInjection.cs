@@ -37,6 +37,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Aynera.Application.Features.Media.Storage;
+using Aynera.Infrastructure.Storage;
+using Aynera.Infrastructure.Aws;
+using Aynera.Application.Features.Liveness.Models;
+using Aynera.Application.Features.Liveness.Repositories;
+using Aynera.Application.Features.Liveness.Services.Interfaces;
 using StackExchange.Redis;
 using System.Text;
 
@@ -46,6 +52,12 @@ public sealed class InfrastructureOptions
 {
     public string RedisConfiguration { get; set; } = string.Empty;
     public bool UseInMemoryOtpStore { get; set; }
+
+    /// <summary>Keep media in process memory instead of R2. Tests only — nothing survives a restart.</summary>
+    public bool UseInMemoryMediaStorage { get; set; }
+
+    /// <summary>A liveness provider that always passes. Tests only.</summary>
+    public bool UseStubLiveness { get; set; }
     public string ConnectionString { get; set; } = string.Empty;
 }
 
@@ -111,6 +123,22 @@ public static class DependencyInjection
             services.AddSingleton<IPublicFormRateLimiter, RedisPublicFormRateLimiter>();
         }
 
+        if (infra.UseInMemoryMediaStorage)
+        {
+            services.AddSingleton<InMemoryMediaStorage>();
+            services.AddSingleton<IMediaStorage>(sp => sp.GetRequiredService<InMemoryMediaStorage>());
+        }
+        else
+        {
+            // Fail at startup, not at the first upload: a missing credential would otherwise surface
+            // as a member's photo silently failing to save.
+            services.AddOptions<R2Options>()
+                .Bind(configuration.GetSection(R2Options.SectionName))
+                .Validate(o => o.IsConfigured, "Aynera:R2 is not configured — set AccountId, AccessKeyId, SecretAccessKey and Bucket (user secrets locally, Aynera__R2__* on Render).")
+                .ValidateOnStart();
+            services.AddSingleton<IMediaStorage, R2MediaStorage>();
+        }
+
         services.AddAutoMapper(
             typeof(Application.DependencyInjection).Assembly,
             typeof(DependencyInjection).Assembly);
@@ -144,7 +172,28 @@ public static class DependencyInjection
         services.AddScoped<VenueNotificationDispatcher>();
         services.AddScoped<ISuggestionRepository, SuggestionRepository>();
         services.AddScoped<IFeedbackSubmissionRepository, FeedbackSubmissionRepository>();
-        services.AddSingleton<IFaceMatchService, StubFaceMatchService>();
+        // Real face comparison and liveness when AWS is configured. Without it, face match stays the
+        // stub it always was, and liveness either stubs (tests) or answers 503 — never a fake pass.
+        services.Configure<AwsOptions>(configuration.GetSection(AwsOptions.SectionName));
+        services.Configure<LivenessOptions>(configuration.GetSection(LivenessOptions.SectionName));
+        services.AddScoped<ILivenessRepository, LivenessRepository>();
+        services.AddScoped<IVerifiedFaceProvider, VerifiedFaceProvider>();
+        var aws = configuration.GetSection(AwsOptions.SectionName).Get<AwsOptions>() ?? new AwsOptions();
+        if (infra.UseStubLiveness)
+        {
+            services.AddSingleton<IFaceMatchService, StubFaceMatchService>();
+            services.AddSingleton<IFaceLivenessProvider, StubFaceLivenessProvider>();
+        }
+        else if (aws.IsConfigured)
+        {
+            services.AddSingleton<IFaceMatchService, AwsFaceMatchService>();
+            services.AddSingleton<IFaceLivenessProvider, AwsFaceLivenessProvider>();
+        }
+        else
+        {
+            services.AddSingleton<IFaceMatchService, StubFaceMatchService>();
+            services.AddSingleton<IFaceLivenessProvider, UnavailableFaceLivenessProvider>();
+        }
         services.AddSingleton<IImageProcessor, ImageSharpProcessor>();
         services.AddSingleton<IMediaAuthenticityService, HeuristicMediaAuthenticityService>();
         services.AddSingleton<IVideoFrameExtractor, StubVideoFrameExtractor>();

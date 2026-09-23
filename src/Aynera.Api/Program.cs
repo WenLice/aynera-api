@@ -148,6 +148,10 @@ builder.Services.AddAyneraInfrastructure(builder.Configuration, options =>
     options.UseInMemoryOtpStore = builder.Configuration.GetValue(
         "Aynera:UseInMemoryOtpStore",
         builder.Environment.IsEnvironment("Testing"));
+    options.UseInMemoryMediaStorage = builder.Configuration.GetValue(
+        "Aynera:UseInMemoryMediaStorage",
+        builder.Environment.IsEnvironment("Testing"));
+    options.UseStubLiveness = builder.Environment.IsEnvironment("Testing");
 });
 
 builder.Services.AddCors(options =>
@@ -196,6 +200,11 @@ else
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// The liveness page (wwwroot/liveness, built from /liveness-page). Served before authentication on
+// purpose: it is a public page that holds nothing secret, and every API call it leads to is authorised.
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 // Always on in Development, and elsewhere only when explicitly switched on.
 //

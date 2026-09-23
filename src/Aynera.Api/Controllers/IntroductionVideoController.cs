@@ -1,3 +1,4 @@
+using Aynera.Domain.Media.Requests;
 using Aynera.Api.Controllers.Base;
 using Aynera.Application.Features.Users.Services.Interfaces;
 using Aynera.Application.Features.Videos.Models;
@@ -38,7 +39,9 @@ public sealed class IntroductionVideoController : BaseController
     /// Requires a reference profile photo. Face is matched against that photo (stub in dev).
     /// Speech is checked against community banned-words guidelines (option C); violation rejects upload.
     /// AI-generated or synthetic media is rejected (<c>video_ai_generated</c>).
-    /// Allowed: MP4 / WebM / QuickTime, max size from config (default 25 MB).
+    /// Allowed: MP4 / WebM / QuickTime, max size from config (default 25 MB). Optional form field
+    /// <c>caption</c> (at most 200 characters). Stored at <c>{userId}/intro_video.{ext}</c>; <c>url</c> in the
+    /// response is a signed playback link valid for an hour.
     /// </remarks>
     [HttpPost("Upload")]
     [Authorize(Policy = AuthPolicies.Member)]
@@ -57,7 +60,12 @@ public sealed class IntroductionVideoController : BaseController
         await using var stream = file.OpenReadStream();
         var dto = await _introductionVideoService.UploadAsync(
             CurrentUser.UserId!.Value,
-            new VideoUploadInput(stream, file.FileName, file.ContentType, file.Length),
+            new VideoUploadInput(
+                stream,
+                file.FileName,
+                file.ContentType,
+                file.Length,
+                Request.Form.TryGetValue("caption", out var caption) ? caption.ToString() : null),
             cancellationToken);
 
         return OkResponse(dto);
@@ -90,6 +98,20 @@ public sealed class IntroductionVideoController : BaseController
     {
         var video = await _introductionVideoService.GetBytesAsync(CurrentUser.UserId!.Value, cancellationToken);
         return File(video.Data, video.ContentType);
+    }
+
+    /// <summary>UpdateIntroductionVideoCaption</summary>
+    /// <remarks>Sets or clears (null or blank) the introduction video's caption without re-uploading it.</remarks>
+    [HttpPatch("me")]
+    [Authorize(Policy = AuthPolicies.Member)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<object?>>> UpdateIntroductionVideoCaption(
+        [FromBody] UpdateMediaCaptionRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _introductionVideoService.UpdateCaptionAsync(CurrentUser.UserId!.Value, request.Caption, cancellationToken);
+        return OkResponse();
     }
 
     /// <summary>DeleteIntroductionVideo</summary>

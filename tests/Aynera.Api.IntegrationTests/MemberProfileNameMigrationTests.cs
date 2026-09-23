@@ -22,6 +22,12 @@ public sealed class MemberProfileNameMigrationTests(AuthApiFactory factory)
     /// <summary>The last migration that still had FirstName/LastName.</summary>
     private const string SplitNameMigration = "20260916081640_RequireMemberProfileCity";
 
+    /// <summary>
+    /// The migration under test. The test migrates to it, not to the latest: later migrations have
+    /// their own guards (a required hometown) that these deliberately old-style rows would trip.
+    /// </summary>
+    private const string MigrationUnderTest = "20260918092953_MemberProfileBasicDetails";
+
     [Fact]
     public async Task MemberProfileBasicDetails_JoinsLegacyNames_AndRefusesRowsWithNone()
     {
@@ -48,20 +54,19 @@ public sealed class MemberProfileNameMigrationTests(AuthApiFactory factory)
                 both, firstOnly, nameless, city.Name, city.Id);
 
             // 1. A row with nothing to build a name from must block the migration, not get a placeholder.
-            var blocked = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync());
+            var blocked = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(MigrationUnderTest));
             Assert.Contains("MemberProfileBasicDetails", blocked.MessageText);
 
             // 2. Once it is gone, both remaining rows keep their name as one value.
             await db.Database.ExecuteSqlRawAsync("""DELETE FROM "MemberProfiles" WHERE "UserId" = {0}""", nameless);
-            await migrator.MigrateAsync();
+            await migrator.MigrateAsync(MigrationUnderTest);
 
-            var joined = await db.MemberProfiles.AsNoTracking().SingleAsync(p => p.UserId == both);
-            Assert.Equal("Ada Lovelace", joined.Name);
-            Assert.Null(joined.Nickname);
+            // Raw SQL: the schema is at the migration under test, not at today's model.
+            Assert.Equal("Ada Lovelace", await ScalarAsync(db, """SELECT "Name" AS "Value" FROM "MemberProfiles" WHERE "UserId" = {0}""", both));
+            Assert.Null(await ScalarAsync(db, """SELECT "Nickname" AS "Value" FROM "MemberProfiles" WHERE "UserId" = {0}""", both));
 
             // A member with no last name is not left with a trailing space.
-            var single = await db.MemberProfiles.AsNoTracking().SingleAsync(p => p.UserId == firstOnly);
-            Assert.Equal("Prince", single.Name);
+            Assert.Equal("Prince", await ScalarAsync(db, """SELECT "Name" AS "Value" FROM "MemberProfiles" WHERE "UserId" = {0}""", firstOnly));
 
             var nullable = await db.Database
                 .SqlQueryRaw<string>("""SELECT is_nullable AS "Value" FROM information_schema.columns WHERE table_name = 'MemberProfiles' AND column_name = 'Name'""")
@@ -73,9 +78,12 @@ public sealed class MemberProfileNameMigrationTests(AuthApiFactory factory)
             await db.Database.ExecuteSqlRawAsync(
                 """DELETE FROM "MemberProfiles" WHERE "UserId" IN ({0}, {1}, {2})""",
                 both, firstOnly, nameless);
-            await migrator.MigrateAsync();
+            await MigrationReplay.RestoreLatestAsync(db);
         }
     }
+
+    private static Task<string?> ScalarAsync(AyneraDbContext db, string sql, Guid userId) =>
+        db.Database.SqlQueryRaw<string?>(sql, userId).SingleAsync();
 
     private static async Task<Guid> CreateMemberAsync(IServiceProvider sp, string tag)
     {

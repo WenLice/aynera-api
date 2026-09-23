@@ -1,3 +1,4 @@
+using Aynera.Domain.Liveness.Exceptions;
 using System.Text.Json;
 using Aynera.Api.Middleware;
 using Aynera.Domain.Admissions.Exceptions;
@@ -49,6 +50,11 @@ public sealed class ExceptionHandlingMiddleware
         catch (VideoException ex)
         {
             _logger.LogWarning(ex, "Video failure {ErrorCode}", ex.ErrorCode);
+            await WriteApiResponseAsync(context, ex.StatusCode, ex.ErrorCode);
+        }
+        catch (LivenessException ex)
+        {
+            _logger.LogWarning(ex, "Liveness failure {ErrorCode}", ex.ErrorCode);
             await WriteApiResponseAsync(context, ex.StatusCode, ex.ErrorCode);
         }
         catch (VenueException ex)

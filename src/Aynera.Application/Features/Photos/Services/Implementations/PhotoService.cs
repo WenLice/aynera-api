@@ -1,11 +1,14 @@
 using AutoMapper;
 using Aynera.Application.Features.Audit.Services.Interfaces;
 using Aynera.Application.Features.Media.Services.Interfaces;
+using Aynera.Application.Features.Media.Storage;
+using Aynera.Application.Features.Liveness.Services.Interfaces;
 using Aynera.Application.Features.Photos.Models;
 using Aynera.Application.Features.Photos.Repositories;
 using Aynera.Application.Features.Photos.Services.Interfaces;
 using Aynera.Domain.Audit.Records;
 using Aynera.Domain.Audit.Statics;
+using Aynera.Domain.Media.Statics;
 using Aynera.Domain.Photos.Records;
 using Aynera.Domain.Photos.Responses;
 using Aynera.Domain.Photos.Enums;
@@ -17,6 +20,11 @@ namespace Aynera.Application.Features.Photos.Services.Implementations;
 
 public sealed class PhotoService : IPhotoService
 {
+    /// <summary>How long a signed image link stays valid. Long enough to render a screen, short enough not to share.</summary>
+    private static readonly TimeSpan ReadUrlLifetime = TimeSpan.FromHours(1);
+
+    private readonly IMediaStorage _storage;
+    private readonly IVerifiedFaceProvider _verifiedFace;
     private readonly IMemberPhotoRepository _photos;
     private readonly IImageProcessor _images;
     private readonly IFaceMatchService _faceMatch;
@@ -34,8 +42,12 @@ public sealed class PhotoService : IPhotoService
         IMapper mapper,
         IAuditWriter audit,
         ILogger<PhotoService> logger,
-        IOptions<PhotoOptions> options)
+        IOptions<PhotoOptions> options,
+        IMediaStorage storage,
+        IVerifiedFaceProvider verifiedFace)
     {
+        _storage = storage;
+        _verifiedFace = verifiedFace;
         _photos = photos;
         _images = images;
         _faceMatch = faceMatch;
@@ -57,18 +69,42 @@ public sealed class PhotoService : IPhotoService
             throw new PhotoException("photo_required", "At least one photo is required.");
         }
 
-        var existingCount = await _photos.CountByUserIdAsync(userId, cancellationToken);
-        if (existingCount + files.Count > _options.MaxCount)
+        foreach (var file in files)
+        {
+            if (file.Slot is int slot && (slot < 1 || slot > _options.MaxCount))
+            {
+                throw new PhotoException(
+                    "photo_slot_invalid",
+                    $"Photo slots run from 1 to {_options.MaxCount}.");
+            }
+
+            if (file.Caption is { Length: > MemberMediaRules.CaptionMaxLength })
+            {
+                throw new PhotoException(
+                    "photo_caption_too_long",
+                    $"A caption can be at most {MemberMediaRules.CaptionMaxLength} characters.");
+            }
+        }
+
+        // A file aimed at a filled slot replaces that photo, so it does not count towards the limit.
+        var existing = await _photos.ListByUserIdAsync(userId, cancellationToken);
+        var adding = files.Count(f => f.Slot is not int slot || existing.All(p => p.SortOrder != slot));
+        if (existing.Count + adding > _options.MaxCount)
         {
             throw new PhotoException(
                 "photo_limit_exceeded",
                 $"You can upload at most {_options.MaxCount} photos.");
         }
 
+        // Every photo is matched against the face the member proved live, not against another
+        // upload: an uploaded photo could be anyone's, the face-check frame cannot.
+        var verified = await _verifiedFace.GetAsync(userId, cancellationToken)
+            ?? throw new PhotoException(
+                "photo_face_check_required",
+                "Complete the face check first — your photos are matched to it.");
+
         var reference = await _photos.FindReferenceAsync(userId, cancellationToken);
         var created = new List<MemberPhotoDto>(files.Count);
-        var nextSort = await _photos.NextSortOrderAsync(userId, cancellationToken);
-
         foreach (var file in files)
         {
             if (file.Length <= 0)
@@ -102,53 +138,67 @@ public sealed class PhotoService : IPhotoService
             original.Position = 0;
             var processed = await _images.ProcessAsync(original, file.ContentType, cancellationToken);
 
-            var isReference = reference is null && created.Count == 0;
-            string faceStatus;
-            decimal? faceScore;
+            var replaced = file.Slot is int target ? existing.FirstOrDefault(p => p.SortOrder == target) : null;
 
-            if (isReference)
+            // The first photo is the one shown first; it no longer anchors identity — the verified
+            // face does.
+            var isReference = (reference is null && created.Count == 0) || replaced?.IsReference == true;
+
+            // Known before matching, because which slot it is decides how strict the match is.
+            var slot = file.Slot ?? await _photos.NextSortOrderAsync(userId, cancellationToken);
+            var match = await _faceMatch.CompareAsync(
+                verified.Data,
+                verified.ContentType,
+                processed.Data,
+                processed.ContentType,
+                cancellationToken);
+            var matched = string.Equals(match.Status, FaceMatchStatus.Matched.ToString(), StringComparison.OrdinalIgnoreCase);
+
+            string faceStatus;
+            if (_options.MustMatchSlots.Contains(slot))
             {
-                faceStatus = FaceMatchStatus.Pending.ToString();
-                faceScore = null;
+                if (!matched)
+                {
+                    var noFace = string.Equals(match.Status, FaceMatchStatus.Skipped.ToString(), StringComparison.OrdinalIgnoreCase);
+                    throw noFace
+                        ? new PhotoException("photo_face_required", "This photo needs to clearly show your face.")
+                        : new PhotoException("photo_face_mismatch", "This doesn't look like you — use a photo of yourself.");
+                }
+
+                faceStatus = FaceMatchStatus.Matched.ToString();
             }
             else
             {
-                var refPhoto = reference
-                    ?? throw new PhotoException(
-                        "photo_reference_missing",
-                        "A reference photo is required before uploading additional photos.",
-                        statusCode: 400);
+                // "Your world", "something you love": a place, a plate, a friend. Never blocked; a
+                // stranger's face is recorded as Skipped with its score so it reads as "not the member"
+                // to a curator without counting as an identity rejection in eligibility.
+                faceStatus = matched ? FaceMatchStatus.Matched.ToString() : FaceMatchStatus.Skipped.ToString();
+            }
 
-                var match = await _faceMatch.CompareAsync(
-                    refPhoto.Data,
-                    refPhoto.ContentType,
-                    processed.Data,
-                    processed.ContentType,
-                    cancellationToken);
+            var faceScore = match.Score;
 
-                faceStatus = match.Status;
-                faceScore = match.Score;
-
-                if (string.Equals(faceStatus, FaceMatchStatus.Rejected.ToString(), StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new PhotoException(
-                        "photo_face_mismatch",
-                        match.Detail ?? "Photo does not appear to match your reference photo.");
-                }
+            if (replaced is not null)
+            {
+                // Only after the new photo passed every check. The slot is unique among live photos,
+                // so the old one steps aside first; the new file then overwrites it in the bucket.
+                await _photos.SoftDeleteAsync(userId, replaced.Id, cancellationToken);
             }
 
             var record = await _photos.AddAsync(
                 new MemberPhotoRecord(
                     Id: Guid.NewGuid(),
                     UserId: userId,
-                    SortOrder: nextSort++,
+                    // Asked per file, not counted up: the slot is the lowest free one, so a
+                    // gap left by a deleted photo is filled before the next number is used.
+                    SortOrder: slot,
                     ContentType: processed.ContentType,
                     ByteSize: processed.ByteSize,
                     Data: processed.Data,
                     IsReference: isReference,
                     FaceMatchStatus: faceStatus,
                     FaceMatchScore: faceScore,
-                    CreatedAtUtc: DateTimeOffset.UtcNow),
+                    CreatedAtUtc: DateTimeOffset.UtcNow,
+                    Caption: NormalizeCaption(file.Caption)),
                 cancellationToken);
 
             if (isReference)
@@ -156,7 +206,7 @@ public sealed class PhotoService : IPhotoService
                 reference = record;
             }
 
-            created.Add(_mapper.Map<MemberPhotoDto>(record));
+            created.Add(ToDto(record));
         }
 
         await _audit.WriteAsync(
@@ -183,7 +233,7 @@ public sealed class PhotoService : IPhotoService
         CancellationToken cancellationToken)
     {
         var photos = await _photos.ListByUserIdAsync(userId, cancellationToken);
-        return _mapper.Map<List<MemberPhotoDto>>(photos);
+        return photos.Select(ToDto).ToList();
     }
 
     public async Task<MemberPhotoBytes> GetBytesAsync(
@@ -193,6 +243,12 @@ public sealed class PhotoService : IPhotoService
     {
         var photo = await _photos.FindByIdAsync(userId, photoId, cancellationToken)
             ?? throw new PhotoException("photo_not_found", "Photo not found.", statusCode: 404);
+
+        // The row can outlive its file (a bucket cleared by hand); an empty image is worse than a 404.
+        if (photo.Data.Length == 0)
+        {
+            throw new PhotoException("photo_not_found", "Photo not found.", statusCode: 404);
+        }
 
         return new MemberPhotoBytes(photo.Id, photo.ContentType, photo.Data);
     }
@@ -221,4 +277,32 @@ public sealed class PhotoService : IPhotoService
                 Metadata: new { photoId, wasReference = photo.IsReference }),
             cancellationToken);
     }
+
+    public async Task UpdateCaptionAsync(
+        Guid userId,
+        Guid photoId,
+        string? caption,
+        CancellationToken cancellationToken)
+    {
+        if (caption is { Length: > MemberMediaRules.CaptionMaxLength })
+        {
+            throw new PhotoException(
+                "photo_caption_too_long",
+                $"A caption can be at most {MemberMediaRules.CaptionMaxLength} characters.");
+        }
+
+        await _photos.UpdateCaptionAsync(userId, photoId, NormalizeCaption(caption), cancellationToken);
+    }
+
+    private MemberPhotoDto ToDto(MemberPhotoRecord record) =>
+        _mapper.Map<MemberPhotoDto>(record) with
+        {
+            Url = string.IsNullOrEmpty(record.StorageKey)
+                ? null
+                : _storage.GetReadUrl(record.StorageKey, ReadUrlLifetime),
+        };
+
+    /// <summary>Blank means no caption; stored as null so "never written" and "cleared" read the same.</summary>
+    private static string? NormalizeCaption(string? caption) =>
+        string.IsNullOrWhiteSpace(caption) ? null : caption.Trim();
 }

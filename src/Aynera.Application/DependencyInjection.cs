@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IAdminAuthService>(sp => sp.GetRequiredService<AuthService>());
         services.AddScoped<IPhotoService, PhotoService>();
         services.AddScoped<IIntroductionVideoService, IntroductionVideoService>();
+        services.AddScoped<Features.Liveness.Services.Interfaces.ILivenessService, Features.Liveness.Services.Implementations.LivenessService>();
         services.AddScoped<IEarlyAccessService, EarlyAccessService>();
         services.AddScoped<IEarlyAccessCityService, EarlyAccessCityService>();
         services.AddScoped<IVenueService, VenueService>();

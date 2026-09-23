@@ -1,3 +1,4 @@
+using Aynera.Domain.Media.Requests;
 using Aynera.Api.Controllers.Base;
 using Aynera.Application.Features.Photos.Models;
 using Aynera.Application.Features.Photos.Services.Interfaces;
@@ -33,7 +34,11 @@ public sealed class PhotosController : BaseController
     /// <summary>UploadPhotos</summary>
     /// <remarks>
     /// Uploads one or more profile photos (multipart form field <c>photos</c>).
-    /// Max 6 photos per account, 5 MB each; JPEG/PNG/WebP accepted and stored as compressed JPEG in Postgres.
+    /// Max 5 photos per account, 5 MB each; JPEG/PNG/WebP accepted, re-encoded as JPEG with location and camera
+    /// metadata stripped, and stored in object storage (Cloudflare R2) at <c>{userId}/photo_{slot}.jpg</c>.
+    /// Each photo takes the lowest free slot, so a deleted slot is refilled before a new number is used.
+    /// A one-file upload may name its <c>slot</c> (1–5) and <c>caption</c> as form fields; a slot that already
+    /// holds a photo is replaced. <c>url</c> in the response is a signed link valid for an hour.
     /// The first photo becomes the reference selfie. Later uploads are compared via the face-match service (stub in dev).
     /// AI-generated or synthetic media is rejected (<c>photo_ai_generated</c>) to keep identity verification trustworthy.
     /// </remarks>
@@ -54,9 +59,23 @@ public sealed class PhotosController : BaseController
             files = Request.Form.Files.ToList();
         }
 
+        // "slot" and "caption" describe a single photo, so they only apply to a one-file upload —
+        // which is how the app sends them, one slot at a time.
+        int? slot = null;
+        string? caption = null;
+        if (files.Count == 1)
+        {
+            if (int.TryParse(Request.Form["slot"].ToString(), out var parsed))
+            {
+                slot = parsed;
+            }
+
+            caption = Request.Form.TryGetValue("caption", out var captionValue) ? captionValue.ToString() : null;
+        }
+
         var inputs = files
             .Where(f => f.Length > 0)
-            .Select(f => new PhotoUploadInput(f.OpenReadStream(), f.FileName, f.ContentType, f.Length))
+            .Select(f => new PhotoUploadInput(f.OpenReadStream(), f.FileName, f.ContentType, f.Length, slot, caption))
             .ToList();
 
         var created = await _photoService.UploadAsync(CurrentUser.UserId!.Value, inputs, cancellationToken);
@@ -85,6 +104,24 @@ public sealed class PhotosController : BaseController
     {
         var photo = await _photoService.GetBytesAsync(CurrentUser.UserId!.Value, photoId, cancellationToken);
         return File(photo.Data, photo.ContentType);
+    }
+
+    /// <summary>UpdatePhotoCaption</summary>
+    /// <remarks>
+    /// Sets or clears (null or blank) the caption of one of the authenticated member's photos without
+    /// re-uploading the image. At most 200 characters.
+    /// </remarks>
+    [HttpPatch("{photoId:guid}")]
+    [Authorize(Policy = AuthPolicies.Member)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<object?>>> UpdatePhotoCaption(
+        Guid photoId,
+        [FromBody] UpdateMediaCaptionRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _photoService.UpdateCaptionAsync(CurrentUser.UserId!.Value, photoId, request.Caption, cancellationToken);
+        return OkResponse();
     }
 
     /// <summary>DeletePhoto</summary>

@@ -16,19 +16,9 @@ public sealed class MemberIdentityEvidenceRepository : IMemberIdentityEvidenceRe
 
     public async Task<bool> HasRejectedFaceMatchAsync(Guid userId, CancellationToken cancellationToken)
     {
-        // AnyAsync so the stored photo/video bytes are never materialized for this check.
-        var photoRejected = await _db.MemberPhotos
-            .AsNoTracking()
-            .AnyAsync(
-                x => x.UserId == userId && x.FaceMatchStatus == FaceMatchStatus.Rejected,
-                cancellationToken);
-
-        if (photoRejected)
-        {
-            return true;
-        }
-
-        return await _db.MemberIntroductionVideos
+        // One query across photos and both videos. Only metadata is read — the bytes are in
+        // object storage and are never needed to answer this.
+        return await _db.MemberMedia
             .AsNoTracking()
             .AnyAsync(
                 x => x.UserId == userId && x.FaceMatchStatus == FaceMatchStatus.Rejected,

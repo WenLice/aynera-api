@@ -20,6 +20,12 @@ public sealed class MemberProfileCityMigrationTests(AuthApiFactory factory)
 {
     private const string NullableColumnMigration = "20260913091510_AddMemberProfileCityId";
 
+    /// <summary>
+    /// The migration under test. The test migrates to it, not to the latest: later migrations have
+    /// their own guards (a required hometown) that these deliberately old-style rows would trip.
+    /// </summary>
+    private const string MigrationUnderTest = "20260916081640_RequireMemberProfileCity";
+
     [Fact]
     public async Task RequireMemberProfileCity_LinksLegacyRowsByName_AndRefusesUnmatchedOnes()
     {
@@ -45,17 +51,23 @@ public sealed class MemberProfileCityMigrationTests(AuthApiFactory factory)
                 matched, unmatched);
 
             // 1. An unmatched profile must block the migration rather than receive a placeholder city.
-            var blocked = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync());
+            var blocked = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(MigrationUnderTest));
             Assert.Contains("RequireMemberProfileCity", blocked.MessageText);
             Assert.Contains("Atlantis", blocked.MessageText);
 
             // 2. Once the unmatched row is gone, the migration links and normalises the remaining rows.
             await db.Database.ExecuteSqlRawAsync("""DELETE FROM "MemberProfiles" WHERE "UserId" = {0}""", unmatched);
-            await migrator.MigrateAsync();
+            await migrator.MigrateAsync(MigrationUnderTest);
 
-            var row = await db.MemberProfiles.AsNoTracking().SingleAsync(p => p.UserId == matched);
-            Assert.Equal(city.Id, row.CityId);
-            Assert.Equal("Bangalore", row.City);
+            // Raw SQL: the schema is at the migration under test, not at today's model.
+            var cityId = await db.Database
+                .SqlQueryRaw<string>("""SELECT "CityId"::text AS "Value" FROM "MemberProfiles" WHERE "UserId" = {0}""", matched)
+                .SingleAsync();
+            var cityName = await db.Database
+                .SqlQueryRaw<string>("""SELECT "City" AS "Value" FROM "MemberProfiles" WHERE "UserId" = {0}""", matched)
+                .SingleAsync();
+            Assert.Equal(city.Id.ToString("D"), cityId);
+            Assert.Equal("Bangalore", cityName);
 
             var nullable = await db.Database
                 .SqlQueryRaw<string>("""SELECT is_nullable AS "Value" FROM information_schema.columns WHERE table_name = 'MemberProfiles' AND column_name = 'CityId'""")
@@ -65,7 +77,7 @@ public sealed class MemberProfileCityMigrationTests(AuthApiFactory factory)
         finally
         {
             await db.Database.ExecuteSqlRawAsync("""DELETE FROM "MemberProfiles" WHERE "UserId" IN ({0}, {1})""", matched, unmatched);
-            await migrator.MigrateAsync();
+            await MigrationReplay.RestoreLatestAsync(db);
         }
     }
 

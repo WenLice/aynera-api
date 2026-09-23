@@ -69,47 +69,8 @@ public sealed class InfrastructureMappingProfile : Profile
             .ForMember(d => d.DeletedAtUtc, o => o.Ignore())
             .ForMember(d => d.User, o => o.Ignore());
 
-        CreateMap<MemberPhoto, MemberPhotoRecord>()
-            .ConstructUsing(src => new MemberPhotoRecord(
-                src.Id,
-                src.UserId,
-                src.SortOrder,
-                src.ContentType,
-                src.ByteSize,
-                src.Data,
-                src.IsReference,
-                src.FaceMatchStatus.ToString(),
-                src.FaceMatchScore,
-                src.CreatedAtUtc))
-            .ForAllMembers(o => o.Ignore());
-
-        CreateMap<MemberPhotoRecord, MemberPhoto>()
-            .ForMember(
-                d => d.Id,
-                o => o.MapFrom(s => s.Id == Guid.Empty ? Guid.NewGuid() : s.Id))
-            .ForMember(d => d.FaceMatchStatus, o => o.Ignore())
-            .ForMember(
-                d => d.CreatedAtUtc,
-                o => o.MapFrom(s => s.CreatedAtUtc == default ? DateTimeOffset.UtcNow : s.CreatedAtUtc))
-            .ForMember(d => d.IsDeleted, o => o.MapFrom(_ => false))
-            .ForMember(d => d.UpdatedAtUtc, o => o.Ignore())
-            .ForMember(d => d.DeletedAtUtc, o => o.Ignore())
-            .ForMember(d => d.User, o => o.Ignore());
-
-        CreateMap<MemberIntroductionVideo, IntroductionVideoRecord>()
-            .ConstructUsing(src => new IntroductionVideoRecord(
-                src.UserId,
-                src.ContentType,
-                src.ByteSize,
-                src.Data,
-                src.FaceMatchStatus.ToString(),
-                src.FaceMatchScore,
-                src.GuidelinePassed,
-                src.GuidelineDetail,
-                src.Transcript,
-                src.CreatedAtUtc,
-                src.UpdatedAtUtc))
-            .ForAllMembers(o => o.Ignore());
+        // Photos and the introduction video are mapped by hand in their repositories: their bytes
+        // come from object storage, not from the row.
 
         CreateMap<EarlyAccessCity, EarlyAccessCityRecord>()
             .ConstructUsing(src => new EarlyAccessCityRecord(

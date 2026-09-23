@@ -4,4 +4,5 @@ public sealed record VideoUploadInput(
     Stream Content,
     string? FileName,
     string? ContentType,
-    long Length);
+    long Length,
+    string? Caption = null);

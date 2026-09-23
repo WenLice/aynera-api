@@ -451,6 +451,41 @@ namespace Aynera.Persistence.Migrations
                     b.ToTable("FeedbackSubmissions", (string)null);
                 });
 
+            modelBuilder.Entity("Aynera.Persistence.Entities.LivenessSession", b =>
+                {
+                    b.Property<string>("SessionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("Confidence")
+                        .HasPrecision(6, 3)
+                        .HasColumnType("numeric(6,3)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<decimal?>("Similarity")
+                        .HasPrecision(6, 3)
+                        .HasColumnType("numeric(6,3)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("SessionId");
+
+                    b.HasIndex("UserId", "CompletedAtUtc");
+
+                    b.ToTable("LivenessSessions", (string)null);
+                });
+
             modelBuilder.Entity("Aynera.Persistence.Entities.MemberAdmission", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -523,13 +558,18 @@ namespace Aynera.Persistence.Migrations
                     b.ToTable("MemberConsents", (string)null);
                 });
 
-            modelBuilder.Entity("Aynera.Persistence.Entities.MemberIntroductionVideo", b =>
+            modelBuilder.Entity("Aynera.Persistence.Entities.MemberMedia", b =>
                 {
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<int>("ByteSize")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Caption")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -538,10 +578,6 @@ namespace Aynera.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<byte[]>("Data")
-                        .IsRequired()
-                        .HasColumnType("bytea");
 
                     b.Property<DateTimeOffset?>("DeletedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -559,58 +595,11 @@ namespace Aynera.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<bool>("GuidelinePassed")
+                    b.Property<bool?>("GuidelinePassed")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Transcript")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("UserId");
-
-                    b.HasIndex("IsDeleted");
-
-                    b.ToTable("MemberIntroductionVideos", (string)null);
-                });
-
-            modelBuilder.Entity("Aynera.Persistence.Entities.MemberPhoto", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ByteSize")
+                    b.Property<int?>("Index")
                         .HasColumnType("integer");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<byte[]>("Data")
-                        .IsRequired()
-                        .HasColumnType("bytea");
-
-                    b.Property<DateTimeOffset?>("DeletedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal?>("FaceMatchScore")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<string>("FaceMatchStatus")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -618,8 +607,19 @@ namespace Aynera.Persistence.Migrations
                     b.Property<bool>("IsReference")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Transcript")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
 
                     b.Property<DateTimeOffset?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -633,9 +633,15 @@ namespace Aynera.Persistence.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.HasIndex("UserId", "SortOrder");
+                    b.HasIndex("UserId", "Kind")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NULL");
 
-                    b.ToTable("MemberPhotos", (string)null);
+                    b.HasIndex("UserId", "Kind", "Index")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NOT NULL");
+
+                    b.ToTable("MemberMedia", (string)null);
                 });
 
             modelBuilder.Entity("Aynera.Persistence.Entities.MemberPreferences", b =>
@@ -1254,6 +1260,17 @@ namespace Aynera.Persistence.Migrations
                     b.Navigation("AuditLog");
                 });
 
+            modelBuilder.Entity("Aynera.Persistence.Entities.LivenessSession", b =>
+                {
+                    b.HasOne("Aynera.Persistence.Entities.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Aynera.Persistence.Entities.MemberAdmission", b =>
                 {
                     b.HasOne("Aynera.Persistence.Entities.AppUser", "User")
@@ -1276,21 +1293,10 @@ namespace Aynera.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Aynera.Persistence.Entities.MemberIntroductionVideo", b =>
+            modelBuilder.Entity("Aynera.Persistence.Entities.MemberMedia", b =>
                 {
                     b.HasOne("Aynera.Persistence.Entities.AppUser", "User")
-                        .WithOne("IntroductionVideo")
-                        .HasForeignKey("Aynera.Persistence.Entities.MemberIntroductionVideo", "UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Aynera.Persistence.Entities.MemberPhoto", b =>
-                {
-                    b.HasOne("Aynera.Persistence.Entities.AppUser", "User")
-                        .WithMany("Photos")
+                        .WithMany("Media")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -1413,9 +1419,7 @@ namespace Aynera.Persistence.Migrations
 
             modelBuilder.Entity("Aynera.Persistence.Entities.AppUser", b =>
                 {
-                    b.Navigation("IntroductionVideo");
-
-                    b.Navigation("Photos");
+                    b.Navigation("Media");
 
                     b.Navigation("Profile");
 

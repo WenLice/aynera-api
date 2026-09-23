@@ -165,6 +165,7 @@ public class AuthEndpointsTests
             new DateOnly(1990, 5, 15),
             "Bangalore",
             email,
+            Hometown: "Pune",
             Religion: "Hindu",
             Password: password);
 
@@ -446,6 +447,7 @@ public class AuthEndpointsTests
         var tokens = await verifyResponse.Content.ReadFromJsonAsync<ApiResponse<TokenResponse>>(JsonOptions);
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", tokens!.Data!.AccessToken);
+        await FaceCheck.PassAsync(client);
 
         await using var jpeg = new MemoryStream();
         using (var image = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgb24>(32, 32))

@@ -20,6 +20,9 @@ using Aynera.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Aynera.Application.Features.Media.Storage;
+using Aynera.Domain.Media.Enums;
+using Aynera.Domain.Media.Statics;
 
 namespace Aynera.Api.IntegrationTests;
 
@@ -98,8 +101,13 @@ public sealed class AccountDeletionConsistencyTests(AuthApiFactory factory)
             $"deletion-{Guid.NewGuid():N}@example.com", Hometown: "Pune", Password: "secret12");
         var account = await sp.GetRequiredService<IRegistrationService>().RegisterAsync(request, CancellationToken.None);
         var db = sp.GetRequiredService<AyneraDbContext>();
-        db.MemberPhotos.Add(new MemberPhoto { Id = Guid.NewGuid(), UserId = account.Id, ContentType = "image/jpeg", Data = [1, 2, 3], ByteSize = 3, IsReference = true });
-        db.MemberIntroductionVideos.Add(new MemberIntroductionVideo { UserId = account.Id, ContentType = "video/mp4", Data = [4, 5, 6], ByteSize = 3 });
+        var storage = sp.GetRequiredService<IMediaStorage>();
+        var photoKey = MediaKeys.Photo(account.Id, 1);
+        var videoKey = MediaKeys.IntroVideo(account.Id, "video/mp4");
+        await storage.PutAsync(photoKey, [1, 2, 3], "image/jpeg", CancellationToken.None);
+        await storage.PutAsync(videoKey, [4, 5, 6], "video/mp4", CancellationToken.None);
+        db.MemberMedia.Add(new MemberMedia { Id = Guid.NewGuid(), UserId = account.Id, Kind = MediaKind.Photo, Index = 1, StorageKey = photoKey, ContentType = "image/jpeg", ByteSize = 3, IsReference = true });
+        db.MemberMedia.Add(new MemberMedia { Id = Guid.NewGuid(), UserId = account.Id, Kind = MediaKind.IntroVideo, StorageKey = videoKey, ContentType = "video/mp4", ByteSize = 3 });
         db.RefreshSessions.Add(new RefreshSession { Id = Guid.NewGuid(), UserId = account.Id, Audience = "member", TokenHash = Guid.NewGuid().ToString("N"), FamilyId = Guid.NewGuid(), CreatedAtUtc = DateTimeOffset.UtcNow, ExpiresAtUtc = DateTimeOffset.UtcNow.AddDays(1) });
         await db.SaveChangesAsync();
         return (account.Id, request);
@@ -113,10 +121,13 @@ public sealed class AccountDeletionConsistencyTests(AuthApiFactory factory)
         Assert.Equal(deleted, user.IsDeleted);
         Assert.Equal(!deleted, user.IsActive);
         Assert.Equal(deleted, (await db.MemberProfiles.IgnoreQueryFilters().SingleAsync(x => x.UserId == id)).IsDeleted);
-        var photo = await db.MemberPhotos.IgnoreQueryFilters().SingleAsync(x => x.UserId == id);
+        var photo = await db.MemberMedia.IgnoreQueryFilters().SingleAsync(x => x.UserId == id && x.Kind == MediaKind.Photo);
         Assert.Equal(deleted, photo.IsDeleted);
-        Assert.Equal(new byte[] { 1, 2, 3 }, photo.Data); // Current retention remains soft deletion.
-        Assert.Equal(deleted, (await db.MemberIntroductionVideos.IgnoreQueryFilters().SingleAsync(x => x.UserId == id)).IsDeleted);
+        // Current retention remains soft deletion: the file stays in the bucket either way, because
+        // account deletion runs in a database transaction that object storage cannot join.
+        var storage = scope.ServiceProvider.GetRequiredService<IMediaStorage>();
+        Assert.Equal(new byte[] { 1, 2, 3 }, await storage.GetAsync(photo.StorageKey, CancellationToken.None));
+        Assert.Equal(deleted, (await db.MemberMedia.IgnoreQueryFilters().SingleAsync(x => x.UserId == id && x.Kind == MediaKind.IntroVideo)).IsDeleted);
         var session = await db.RefreshSessions.IgnoreQueryFilters().SingleAsync(x => x.UserId == id);
         Assert.Equal(deleted, session.IsDeleted);
         Assert.Equal(deleted, session.RevokedAtUtc.HasValue);

@@ -1,0 +1,18 @@
+html,
+body {
+  margin: 0;
+  background: #fbf7f4;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.page {
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: 16px;
+}
+
+.note {
+  margin-top: 40vh;
+  text-align: center;
+  color: #6b5f55;
+}

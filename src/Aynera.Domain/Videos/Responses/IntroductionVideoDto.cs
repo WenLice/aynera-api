@@ -9,4 +9,7 @@ public sealed record IntroductionVideoDto(
     bool GuidelinePassed,
     string? GuidelineDetail,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? UpdatedAtUtc);
+    DateTimeOffset? UpdatedAtUtc,
+    string? Caption = null,
+    // A short-lived signed link for playback; ask again rather than storing it.
+    string? Url = null);

@@ -62,6 +62,29 @@ services:
       # codes in the logs.
       - key: Aynera__ExposeSwagger
         sync: false
+      # Face check (AWS Rekognition Face Liveness + CompareFaces), region ap-south-1. Without the
+      # keys the API still starts: face match stays a stub and the face check answers 503.
+      # Keys: an IAM user limited to CreateFaceLivenessSession, GetFaceLivenessSessionResults,
+      # CompareFaces. IdentityPoolId: the Cognito pool whose guest role may only StartFaceLivenessSession.
+      - key: Aynera__Aws__AccessKeyId
+        sync: false
+      - key: Aynera__Aws__SecretAccessKey
+        sync: false
+      - key: Aynera__Aws__IdentityPoolId
+        sync: false
+      # The face-check page this API serves; the app opens it in a WebView.
+      - key: Aynera__Liveness__PageUrl
+        value: https://aynera-api.onrender.com/liveness/
+      # Media storage (Cloudflare R2). Required: the API refuses to start without all four.
+      # Use an R2 Account API token scoped Object Read & Write to this one bucket.
+      - key: Aynera__R2__AccountId
+        sync: false
+      - key: Aynera__R2__AccessKeyId
+        sync: false
+      - key: Aynera__R2__SecretAccessKey
+        sync: false
+      - key: Aynera__R2__Bucket
+        sync: false
       # First admin, created only when no admin exists yet. Leave unset to skip seeding.
       - key: Aynera__AdminSeed__Email
         sync: false
