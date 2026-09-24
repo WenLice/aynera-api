@@ -104,9 +104,15 @@ services:
         sync: false
       - key: AYNERA_2FACTOR_TEMPLATE
         sync: false
-      # Email over plain SMTP — no SDK, no provider-specific code. `SmtpEmailService` is
-      # selected whenever AYNERA_EMAIL_PROVIDER is "Smtp" and a host is set, so moving
-      # between providers is these variables and nothing else.
+      # Email. On Render's FREE plan set AYNERA_EMAIL_PROVIDER to "ZeptoMail": free web services
+      # block outbound SMTP ports (25/465/587), so an SMTP connect hangs until the request is
+      # cancelled. "ZeptoMail" sends over HTTPS (api.zeptomail.in) and reuses AYNERA_SMTP_PASSWORD
+      # as its token (or set AYNERA_ZEPTOMAIL_TOKEN); it also needs AYNERA_SMTP_FROM. Host, port
+      # and username are then unused.
+      #
+      # "Smtp" (a paid instance or your own server) uses plain SMTP — `SmtpEmailService` is
+      # selected when the provider is "Smtp" and a host is set, so moving between SMTP
+      # providers is these variables and nothing else.
       #
       # Current provider is ZeptoMail (Zoho's transactional service, India DC):
       #   host smtp.zeptomail.in, port 587 STARTTLS (465 is TLS Wrapper, also supported),

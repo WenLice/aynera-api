@@ -7,7 +7,7 @@ aynera-api/
 │   ├── Aynera.Application/      # services + repository interfaces + feature models (+ IEmail/ISms)
 │   ├── Aynera.Persistence/      # entities, DbContext, EF migrations
 │   ├── Aynera.Infrastructure/   # repository impl, Redis, JWT, seeds
-│   ├── Aynera.Notifications/    # email/SMS adapters (Console, SMTP, Textbelt)
+│   ├── Aynera.Notifications/    # email/SMS adapters (Console, SMTP, ZeptoMail API, Textbelt, 2Factor)
 │   ├── Aynera.Api/              # controllers, middleware, composition root
 │   ├── Aynera.slnx
 │   ├── Dockerfile

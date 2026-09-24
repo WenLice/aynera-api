@@ -38,6 +38,8 @@ public static class DependencyInjection
             options.SmtpPassword = configuration["AYNERA_SMTP_PASSWORD"] ?? options.SmtpPassword;
             options.FromAddress = configuration["AYNERA_SMTP_FROM"] ?? options.FromAddress;
             options.FromDisplayName = configuration["AYNERA_SMTP_FROM_NAME"] ?? options.FromDisplayName;
+            options.ZeptoMailToken = configuration["AYNERA_ZEPTOMAIL_TOKEN"] ?? options.ZeptoMailToken;
+            options.ZeptoMailApiUrl = configuration["AYNERA_ZEPTOMAIL_API_URL"] ?? options.ZeptoMailApiUrl;
         });
 
         services.Configure<SmsOptions>(options =>
@@ -61,7 +63,11 @@ public static class DependencyInjection
             emailProvider.Equals("Smtp", StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(smtpHost);
 
-        if (useSmtp)
+        if (emailProvider.Equals("ZeptoMail", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddHttpClient<IEmailService, ZeptoMailEmailService>();
+        }
+        else if (useSmtp)
         {
             services.AddSingleton<IEmailService, SmtpEmailService>();
         }

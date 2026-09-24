@@ -36,7 +36,7 @@ It is **not** a microservices fleet. Add features as folders under Application /
 | **Aynera.Application** | Feature services + **repository interfaces** + config models + notification contracts (`IEmailService`, `ISmsService`). |
 | **Aynera.Persistence** | Entities (`AppUser`, `RefreshSession`), `AyneraDbContext`, EF migrations. |
 | **Aynera.Infrastructure** | Repository implementations, Redis OTP, JWT signer, DI wiring for infra. |
-| **Aynera.Notifications** | Email/SMS adapters (Console, SMTP, Textbelt) implementing Application contracts. |
+| **Aynera.Notifications** | Email/SMS adapters (Console, SMTP, ZeptoMail API, Textbelt, 2Factor) implementing Application contracts. |
 | **Aynera.Api** | Controllers, middleware, Swagger, host `Program.cs`. |
 
 ### Allowed references (one-way)
@@ -100,7 +100,7 @@ Aynera.Infrastructure/
 └── Services/               # JwtTokenService, CurrentUser, …
 
 Aynera.Notifications/
-├── Email/                  # ConsoleEmailService, SmtpEmailService
+├── Email/                  # ConsoleEmailService, SmtpEmailService, ZeptoMailEmailService (shared wording in PlainTextEmailService)
 ├── Sms/                    # ConsoleSmsService, TextbeltSmsService
 └── DependencyInjection.cs  # AddAyneraNotifications
 
@@ -200,8 +200,8 @@ Bound mainly under `Aynera:*` in `appsettings.json` / environment:
 | Redis | `Aynera:Redis` / `AYNERA_REDIS` |
 | JWT | `Aynera:Jwt` — signing key ≥ 32 chars; audiences `member`, `admin`; access 1 hour; member refresh 90 days; admin refresh 24 hours |
 | OTP | `Aynera:Otp` — length, TTL, attempt and rate caps |
-| Email | `Aynera:Email` — `Provider` Console\|Smtp; SMTP host/from; verify link base URL |
-| SMS | `Aynera:Sms` — `Provider` Console\|Textbelt; Textbelt key (free `textbelt`) |
+| Email | `Aynera:Email` — `Provider` Console\|Smtp\|ZeptoMail; SMTP host/from; ZeptoMail token (defaults to the SMTP password); verify link base URL |
+| SMS | `Aynera:Sms` — `Provider` Console\|2Factor\|Textbelt; 2Factor key + template; Textbelt key (free `textbelt`) |
 | CORS | `Aynera:Cors:Origins` — local web/admin ports by default |
 | Photos | `Aynera:Photos` — max count/bytes, stub face-match status |
 | Introduction video | `Aynera:IntroductionVideo` — max bytes, banned words, stub transcript |
@@ -214,7 +214,7 @@ See `.env.example` and [setup.md](./setup.md).
 
 **Media storage:** photos and videos live in Cloudflare R2 (`IMediaStorage`; in-memory under the Testing environment), one folder per member — `{userId}/photo_N.jpg`, `{userId}/intro_video.ext`. `MemberMedia` holds keys only. The API refuses to start outside Testing when `Aynera:R2` is incomplete. Purging files of soft-deleted media is deferred.
 
-**Email / SMS:** live in **Aynera.Notifications** behind `IEmailService` / `ISmsService`. `Provider` = `Console` (default), `Smtp`, or `Textbelt`. Never logs OTP, phones, emails, or verify URLs. Api registers `AddAyneraNotifications`. Integration tests replace with capturing doubles.
+**Email / SMS:** live in **Aynera.Notifications** behind `IEmailService` / `ISmsService`. `Provider` = `Console` (default), `Smtp` or `ZeptoMail` (HTTPS API — required on Render free, which blocks outbound SMTP) for email; `Console`, `2Factor` or `Textbelt` for SMS. Never logs OTP, phones, emails, or verify URLs. Api registers `AddAyneraNotifications`. Integration tests replace with capturing doubles.
 
 ---
 
