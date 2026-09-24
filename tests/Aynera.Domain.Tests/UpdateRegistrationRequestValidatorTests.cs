@@ -1,3 +1,4 @@
+using Aynera.Domain.Answers.Records;
 using Aynera.Domain.Auth.Enums;
 using Aynera.Domain.Registration.Requests;
 using Aynera.Domain.Registration.Validators;
@@ -105,4 +106,67 @@ public class UpdateRegistrationRequestValidatorTests
             Hometown: "Pune",
             City: "Bangalore",
             Work: "Writes compilers")).IsValid);
+
+    // ---- prompts, extras, notifications ----------------------------------------------------
+
+    [Fact]
+    public void Prompts_TypedOrForRecording_AreValid() =>
+        Assert.True(Validator.Validate(new UpdateRegistrationRequest(Prompts:
+            [new MemberPromptAnswer("know", "A sentence."), new MemberPromptAnswer("soft")])).IsValid);
+
+    [Fact]
+    public void Prompts_MoreThanThree_AreRefused() =>
+        Assert.False(Validator.Validate(new UpdateRegistrationRequest(Prompts:
+            [new("a"), new("b"), new("c"), new("d")])).IsValid);
+
+    [Fact]
+    public void Prompts_SameOneTwice_IsRefused() =>
+        Assert.False(Validator.Validate(new UpdateRegistrationRequest(Prompts: [new("know"), new("know")])).IsValid);
+
+    /// <summary>The id becomes part of an object key, so anything path-like is refused.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("../x")]
+    [InlineData("Know")]
+    [InlineData("has space")]
+    [InlineData("a-very-long-prompt-id-that-is-too-long")]
+    public void PromptId_MustBePathSafe(string promptId) =>
+        Assert.False(Validator.Validate(new UpdateRegistrationRequest(Prompts: [new(promptId)])).IsValid);
+
+    [Fact]
+    public void PromptText_OverTheLimit_IsRefused() =>
+        Assert.False(Validator.Validate(new UpdateRegistrationRequest(Prompts:
+            [new MemberPromptAnswer("know", new string('a', 301))])).IsValid);
+
+    [Fact]
+    public void EmptyPromptList_IsAValidChange() =>
+        Assert.True(Validator.Validate(new UpdateRegistrationRequest(Prompts: [])).IsValid);
+
+    [Fact]
+    public void NotificationsAlone_IsAValidPage() =>
+        Assert.True(Validator.Validate(new UpdateRegistrationRequest(NotificationsOn: false)).IsValid);
+
+    [Fact]
+    public void Dealbreaker_Empty_ClearsAndIsValid_TooLong_IsRefused()
+    {
+        Assert.True(Validator.Validate(new UpdateRegistrationRequest(Dealbreaker: "")).IsValid);
+        Assert.False(Validator.Validate(new UpdateRegistrationRequest(Dealbreaker: new string('a', 501))).IsValid);
+    }
+
+    [Fact]
+    public void Rhythm_NeedsAnOptionForEveryQuestion()
+    {
+        Assert.True(Validator.Validate(new UpdateRegistrationRequest(Rhythm:
+            new Dictionary<string, string> { ["socialEnergy"] = "Small groups" })).IsValid);
+        Assert.False(Validator.Validate(new UpdateRegistrationRequest(Rhythm:
+            new Dictionary<string, string> { ["socialEnergy"] = " " })).IsValid);
+    }
+
+    /// <summary>Only the three genders exist; hiding one is genderIsPublic, not a fourth value.</summary>
+    [Fact]
+    public void OnlyTheThreeGenders_AreAccepted()
+    {
+        Assert.False(Validator.Validate(new UpdateRegistrationRequest(Gender: (Gender)3)).IsValid);
+        Assert.True(Validator.Validate(new UpdateRegistrationRequest(Gender: Gender.ThirdGender, GenderIsPublic: false)).IsValid);
+    }
 }

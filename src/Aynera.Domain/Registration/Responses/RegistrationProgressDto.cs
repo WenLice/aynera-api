@@ -2,6 +2,7 @@ using Aynera.Domain.Answers.Responses;
 using Aynera.Domain.Auth.Responses;
 using Aynera.Domain.Preferences.Responses;
 using Aynera.Domain.Registration.Records;
+using Aynera.Domain.Settings.Responses;
 
 namespace Aynera.Domain.Registration.Responses;
 
@@ -21,10 +22,12 @@ namespace Aynera.Domain.Registration.Responses;
 /// <param name="NextStep">Null when every step in the flow is satisfied.</param>
 /// <param name="Profile">Non-null once the personal details were complete and the profile was created.</param>
 /// <param name="Preferences">Non-null once the hard filters were complete and the row was created.</param>
+/// <param name="Settings">Notification switches, pause and field visibility, once any was set.</param>
 public sealed record RegistrationProgressDto(
     RegistrationAnswers Answers,
     IReadOnlyList<string> Completed,
     string? NextStep,
     MemberProfileDto? Profile = null,
     MemberPreferencesDto? Preferences = null,
-    MemberProfileAnswersDto? ProfileAnswers = null);
+    MemberProfileAnswersDto? ProfileAnswers = null,
+    MemberSettingsDto? Settings = null);

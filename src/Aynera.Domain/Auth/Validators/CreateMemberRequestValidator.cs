@@ -36,7 +36,7 @@ public sealed class CreateMemberRequestValidator : AbstractValidator<CreateMembe
             .When(x => !string.IsNullOrWhiteSpace(x.Work));
 
         RuleFor(x => x.Gender)
-            .IsInEnum().WithMessage("Gender is invalid.");
+            .IsInEnum().WithMessage("Choose Male, Female or Third Gender / Transgender.");
 
         RuleFor(x => x.DateOfBirth)
             .Must(dob => dob != default).WithMessage("Date of birth is required.")

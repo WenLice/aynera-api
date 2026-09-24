@@ -52,6 +52,11 @@ public sealed class ExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Video failure {ErrorCode}", ex.ErrorCode);
             await WriteApiResponseAsync(context, ex.StatusCode, ex.ErrorCode);
         }
+        catch (Aynera.Domain.Voice.Exceptions.VoiceAnswerException ex)
+        {
+            _logger.LogWarning(ex, "Voice answer failure {ErrorCode}", ex.ErrorCode);
+            await WriteApiResponseAsync(context, ex.StatusCode, ex.ErrorCode);
+        }
         catch (LivenessException ex)
         {
             _logger.LogWarning(ex, "Liveness failure {ErrorCode}", ex.ErrorCode);

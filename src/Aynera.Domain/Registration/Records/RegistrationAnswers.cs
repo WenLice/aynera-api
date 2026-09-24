@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Aynera.Domain.Registration.Records;
 
 /// <summary>
@@ -71,5 +73,6 @@ public sealed record RegistrationAnswers(
     /// True when nothing is left to keep. The draft row is dropped at that point rather than left
     /// behind as an empty document that later reads would have to interpret.
     /// </summary>
+    [JsonIgnore]
     public bool IsEmpty => this == Empty;
 }

@@ -11,4 +11,7 @@ public enum MediaKind
 
     /// <summary>The reference selfie from the private liveness check. One per member; staff-only.</summary>
     Liveness = 2,
+
+    /// <summary>A spoken answer to one conversation prompt. One per prompt the member holds.</summary>
+    VoiceAnswer = 3,
 }

@@ -612,6 +612,10 @@ namespace Aynera.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<string>("PromptId")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("StorageKey")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -635,11 +639,15 @@ namespace Aynera.Persistence.Migrations
 
                     b.HasIndex("UserId", "Kind")
                         .IsUnique()
-                        .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NULL");
+                        .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NULL AND \"PromptId\" IS NULL");
 
                     b.HasIndex("UserId", "Kind", "Index")
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NOT NULL");
+
+                    b.HasIndex("UserId", "Kind", "PromptId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false AND \"PromptId\" IS NOT NULL");
 
                     b.ToTable("MemberMedia", (string)null);
                 });
@@ -719,9 +727,6 @@ namespace Aynera.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<bool>("GenderIsPublic")
-                        .HasColumnType("boolean");
-
                     b.Property<int?>("HeightCm")
                         .HasColumnType("integer");
 
@@ -774,6 +779,10 @@ namespace Aynera.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Dealbreaker")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<DateTimeOffset?>("DeletedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -783,6 +792,18 @@ namespace Aynera.Persistence.Migrations
                     b.Property<string>("Lifestyle")
                         .IsRequired()
                         .HasColumnType("jsonb");
+
+                    b.Property<string>("Prompts")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
+                    b.Property<string>("Rhythm")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'{}'::jsonb");
 
                     b.Property<DateTimeOffset?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -816,6 +837,53 @@ namespace Aynera.Persistence.Migrations
                     b.HasKey("UserId");
 
                     b.ToTable("MemberRegistrationDrafts", (string)null);
+                });
+
+            modelBuilder.Entity("Aynera.Persistence.Entities.MemberSettings", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IntroductionsPaused")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("NotifyIntroductions")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("NotifyReplies")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("NotifyWeekendSurprise")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("PausedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("IntroductionsPaused");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.ToTable("MemberSettings", (string)null);
                 });
 
             modelBuilder.Entity("Aynera.Persistence.Entities.RefreshSession", b =>
@@ -1348,6 +1416,17 @@ namespace Aynera.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Aynera.Persistence.Entities.MemberSettings", b =>
+                {
+                    b.HasOne("Aynera.Persistence.Entities.AppUser", "User")
+                        .WithOne("Settings")
+                        .HasForeignKey("Aynera.Persistence.Entities.MemberSettings", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Aynera.Persistence.Entities.RefreshSession", b =>
                 {
                     b.HasOne("Aynera.Persistence.Entities.AppUser", null)
@@ -1424,6 +1503,8 @@ namespace Aynera.Persistence.Migrations
                     b.Navigation("Profile");
 
                     b.Navigation("RefreshSessions");
+
+                    b.Navigation("Settings");
                 });
 
             modelBuilder.Entity("Aynera.Persistence.Entities.AuditLog", b =>

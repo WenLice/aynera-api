@@ -1,4 +1,5 @@
 using Aynera.Domain.Answers.Records;
+using Aynera.Domain.Answers.Statics;
 using Aynera.Domain.Registration.Records;
 
 namespace Aynera.Domain.Registration.Statics;
@@ -26,11 +27,13 @@ public static class RegistrationProgress
     public const string Vibe = "vibe";
     public const string Photos = "photos";
     public const string Liveness = "liveness";
+    public const string Voice = "voice";
+    public const string Notifications = "notifications";
     public const string Consent = "consent";
 
     /// <summary>Registration order, matching the app's flow. Later steps append here.</summary>
     public static readonly IReadOnlyList<string> Ordered =
-        [Phone, Email, You, Self, Birth, Life, Looking, Intent, Lifestyle, Beliefs, Vibe, Liveness, Photos, Consent];
+        [Phone, Email, You, Self, Birth, Life, Looking, Intent, Lifestyle, Beliefs, Vibe, Liveness, Photos, Voice, Notifications, Consent];
 
     /// <summary>
     /// The answers a profile cannot be created without. Presence is only ever checked here and at
@@ -69,6 +72,8 @@ public static class RegistrationProgress
     /// nothing" apart from "not reached yet". A member who genuinely wants to answer none of a
     /// category is therefore asked again on resume, which is the one rough edge of this rule.
     /// </param>
+    /// <param name="recordedPromptIds">Prompts with a stored spoken answer; a prompt counts as answered by text or by voice.</param>
+    /// <param name="notificationsAnswered">The member said yes or not now on the notifications page.</param>
     public static IReadOnlyList<string> Completed(
         bool phoneConfirmed,
         bool emailConfirmed,
@@ -76,7 +81,9 @@ public static class RegistrationProgress
         MemberProfileAnswersRecord? profileAnswers = null,
         bool photosComplete = false,
         bool consentsAccepted = false,
-        bool livenessPassed = false)
+        bool livenessPassed = false,
+        IReadOnlyCollection<string>? recordedPromptIds = null,
+        bool notificationsAnswered = false)
     {
         var done = new List<string>(Ordered.Count);
 
@@ -114,6 +121,19 @@ public static class RegistrationProgress
         // Tracked here so a member who leaves after the face check reopens on their photos rather
         // than being sent past them to the consent page.
         if (photosComplete) done.Add(Photos);
+
+        // The intro video is optional and a skip stores nothing, so it is deliberately not a step:
+        // a member who leaves on that page resumes on the prompts and can add a video from edit.
+
+        if (profileAnswers is not null
+            && PromptRules.AnsweredCount(profileAnswers.Prompts, recordedPromptIds ?? [])
+                >= PromptRules.RequiredAnswered)
+        {
+            done.Add(Voice);
+        }
+
+        // "Not now" is an answer too; only never reaching the page leaves this open.
+        if (notificationsAnswered) done.Add(Notifications);
 
         // Every required document accepted at its current version — the same rule eligibility uses
         // (ConsentRules), so the two can never disagree about whether the member has agreed.

@@ -63,7 +63,8 @@ public class AuthServiceTests
         var queue = new TestVerificationQueue();
         Lifecycles.Add(auth, new AccountLifecycleService(users, profiles, new FakeMemberPreferencesRepository(), photos, videos, sessions, audit,
             DiscardLogger<AccountLifecycleService>.Instance, new TestWorkflowTransaction(), queue,
-            otp, sms, email, otpOptions, jwtOptions));
+            otp, sms, email, otpOptions, jwtOptions, new FakeProfileAnswersRepository(), new FakeVoiceAnswerRepository(),
+            new FakeMemberSettingsRepository()));
         Queues.Add(auth, queue);
         var cities = new FakeEarlyAccessCityRepository();
         Cities.Add(auth, cities);

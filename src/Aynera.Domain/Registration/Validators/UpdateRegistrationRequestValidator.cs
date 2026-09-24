@@ -37,7 +37,7 @@ public sealed class UpdateRegistrationRequestValidator : AbstractValidator<Updat
             .When(x => !string.IsNullOrWhiteSpace(x.Nickname));
 
         RuleFor(x => x.Gender)
-            .IsInEnum().WithMessage("Gender is invalid.")
+            .IsInEnum().WithMessage("Choose Male, Female or Third Gender / Transgender.")
             .When(x => x.Gender is not null);
 
         RuleFor(x => x.DateOfBirth)
@@ -130,6 +130,33 @@ public sealed class UpdateRegistrationRequestValidator : AbstractValidator<Updat
             .Must(vibe => vibe.Distinct(StringComparer.Ordinal).Count() == vibe.Count)
             .WithMessage("The same vibe chip was sent twice.")
             .When(x => x.Vibe is not null);
+
+        // Prompts — the full chosen list. Ids become part of an object key for the recording, so
+        // they must be path-safe; a typed answer is optional because the member may record instead.
+        RuleFor(x => x.Prompts!)
+            .Must(prompts => prompts.Count <= PromptRules.MaxPrompts)
+            .WithMessage($"At most {PromptRules.MaxPrompts} prompts.")
+            .Must(prompts => prompts.All(p => p is not null && PromptRules.IsValidPromptId(p.PromptId)))
+            .WithMessage("Every prompt needs a valid prompt id.")
+            .Must(prompts => prompts.Select(p => p?.PromptId).Distinct(StringComparer.Ordinal).Count() == prompts.Count)
+            .WithMessage("The same prompt was chosen twice.")
+            .Must(prompts => prompts.All(p => p?.Text is null || p.Text.Length <= PromptRules.TextMaxLength))
+            .WithMessage($"A prompt answer can be at most {PromptRules.TextMaxLength} characters.")
+            .When(x => x.Prompts is not null);
+
+        RuleFor(x => x.Dealbreaker)
+            .MaximumLength(AnswerRules.DealbreakerMaxLength)
+            .WithMessage($"Keep it under {AnswerRules.DealbreakerMaxLength} characters.")
+            .When(x => x.Dealbreaker is not null);
+
+        RuleFor(x => x.Rhythm!)
+            .Must(map => map.Count <= AnswerRules.CategoryMaxAnswers)
+            .WithMessage($"At most {AnswerRules.CategoryMaxAnswers} rhythm answers.")
+            .Must(map => map.Keys.All(key => !string.IsNullOrWhiteSpace(key) && key.Length <= AnswerRules.KeyMaxLength))
+            .WithMessage("A rhythm question key is invalid.")
+            .Must(map => map.Values.All(value => !string.IsNullOrWhiteSpace(value) && value.Length <= AnswerRules.KeyMaxLength))
+            .WithMessage("Every rhythm answer needs an option.")
+            .When(x => x.Rhythm is not null);
     }
 }
 

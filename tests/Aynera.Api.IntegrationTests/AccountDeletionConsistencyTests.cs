@@ -1,3 +1,5 @@
+using Aynera.Application.Features.Answers.Repositories;
+using Aynera.Application.Features.Voice.Repositories;
 using System.Reflection;
 using Aynera.Application.Common;
 using Aynera.Application.Features.Audit.Services.Interfaces;
@@ -69,7 +71,10 @@ public sealed class AccountDeletionConsistencyTests(AuthApiFactory factory)
                 sp.GetRequiredService<IOtpChallengeRepository>(), sp.GetRequiredService<ISmsService>(),
                 sp.GetRequiredService<IEmailService>(),
                 sp.GetRequiredService<IOptions<OtpOptions>>(),
-                sp.GetRequiredService<IOptions<JwtOptions>>());
+                sp.GetRequiredService<IOptions<JwtOptions>>(),
+                sp.GetRequiredService<IMemberProfileAnswersRepository>(),
+                sp.GetRequiredService<IVoiceAnswerRepository>(),
+                sp.GetRequiredService<Aynera.Application.Features.Settings.Repositories.IMemberSettingsRepository>());
             if (failure == "cancellation")
                 await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.DeleteMemberAsync(id, cancellation.Token));
             else

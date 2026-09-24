@@ -37,6 +37,18 @@ public sealed class MemberProfileAnswers : ISoftDeletable
     /// </summary>
     public string Vibe { get; set; } = "[]";
 
+    /// <summary>
+    /// The chosen conversation prompts in order, with any typed answer:
+    /// <c>[{"promptId":"know","text":"…"}]</c>. A spoken answer lives in <c>MemberMedia</c>.
+    /// </summary>
+    public string Prompts { get; set; } = "[]";
+
+    /// <summary>"Something I don't usually say first" — free text from the profile editor.</summary>
+    public string? Dealbreaker { get; set; }
+
+    /// <summary>The rhythm answers, keyed by question: <c>{"socialEnergy":"…","weekends":"…"}</c>.</summary>
+    public string Rhythm { get; set; } = "{}";
+
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAtUtc { get; set; }
     public bool IsDeleted { get; set; }

@@ -20,6 +20,7 @@ using Aynera.Domain.Auth.Records;
 using Aynera.Domain.Auth.Requests;
 using Aynera.Domain.Auth.Responses;
 using Aynera.Domain.Answers.Records;
+using Aynera.Domain.Answers.Responses;
 using Aynera.Domain.Preferences.Enums;
 using Aynera.Domain.Preferences.Records;
 using Aynera.Domain.Preferences.Requests;
@@ -52,6 +53,8 @@ public class RegistrationDraftServiceTests
         public CountedPhotos Photos { get; } = new();
         public ListedConsents Consents { get; } = new();
         public LatestLiveness Liveness { get; } = new();
+        public FakeVoiceAnswerRepository Voice { get; } = new();
+        public FakeMemberSettingsRepository Settings { get; } = new();
         public RegistrationDraftService Service { get; }
 
         public Harness()
@@ -60,7 +63,7 @@ public class RegistrationDraftServiceTests
             PreferencesService = new StubPreferencesService(Preferences);
             Service = new RegistrationDraftService(
                 Users, Profiles, Preferences, Answers, Drafts, Registration, PreferencesService,
-                Photos, Consents, Liveness, Options.Create(new PhotoOptions()), Options.Create(new AdmissionOptions()),
+                Photos, Consents, Liveness, Voice, Settings, Options.Create(new PhotoOptions()), Options.Create(new AdmissionOptions()),
                 TestMapper.Instance, DiscardLogger<RegistrationDraftService>.Instance);
         }
 
@@ -389,13 +392,26 @@ public class RegistrationDraftServiceTests
         Assert.Equal(RegistrationProgress.Liveness, (await h.Service.GetAsync(id, default)).NextStep);
     }
 
+    /// <summary>The intro video is optional and not a step, so photos lead straight to the prompts.</summary>
     [Fact]
-    public async Task FaceCheckPassed_AndPhotosFilled_ResumesAtConsent()
+    public async Task FaceCheckPassed_AndPhotosFilled_ResumesAtThePrompts()
     {
         var h = new Harness();
         var id = await AnswerEveryPageAsync(h);
         h.Photos.Count = new PhotoOptions().MaxCount;
         h.Liveness.Set(id, LivenessOutcome.Passed);
+
+        Assert.Equal(RegistrationProgress.Voice, (await h.Service.GetAsync(id, default)).NextStep);
+    }
+
+    [Fact]
+    public async Task PromptsAndNotificationsAnswered_ResumesAtConsent()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        h.Photos.Count = new PhotoOptions().MaxCount;
+        h.Liveness.Set(id, LivenessOutcome.Passed);
+        await AnswerPromptsAndNotificationsAsync(h, id);
 
         Assert.Equal(RegistrationProgress.Consent, (await h.Service.GetAsync(id, default)).NextStep);
     }
@@ -422,6 +438,7 @@ public class RegistrationDraftServiceTests
         var id = await AnswerEveryPageAsync(h);
         h.Photos.Count = new PhotoOptions().MaxCount;
         h.Liveness.Set(id, LivenessOutcome.Passed);
+        await AnswerPromptsAndNotificationsAsync(h, id);
 
         h.Consents.Accept(id, ConsentPolicyKind.Terms, "1.0");
         h.Consents.Accept(id, ConsentPolicyKind.Privacy, "1.0");
@@ -445,6 +462,7 @@ public class RegistrationDraftServiceTests
         var id = await AnswerEveryPageAsync(h);
         h.Photos.Count = new PhotoOptions().MaxCount;
         h.Liveness.Set(id, LivenessOutcome.Passed);
+        await AnswerPromptsAndNotificationsAsync(h, id);
         h.Consents.Accept(id, ConsentPolicyKind.Terms, "1.0");
         h.Consents.Accept(id, ConsentPolicyKind.Privacy, "1.0");
         h.Consents.Accept(id, ConsentPolicyKind.CommunityGuidelines, "1.0");
@@ -454,6 +472,14 @@ public class RegistrationDraftServiceTests
         Assert.Null(edited.NextStep);
         Assert.Contains(RegistrationProgress.Consent, edited.Completed);
     }
+
+    private static Task AnswerPromptsAndNotificationsAsync(Harness h, Guid id) =>
+        h.Service.PatchAsync(
+            id,
+            new UpdateRegistrationRequest(
+                Prompts: [new MemberPromptAnswer("know", "Something real."), new MemberPromptAnswer("soft", "Also real.")],
+                NotificationsOn: true),
+            default);
 
     private static async Task<Guid> AnswerEveryPageAsync(Harness h)
     {
@@ -470,7 +496,7 @@ public class RegistrationDraftServiceTests
         return id;
     }
 
-    /// <summary>The whole question walk leaves only photos, the face check and consent outstanding.</summary>
+    /// <summary>The whole question walk leaves the face check, photos, prompts, notifications and consent.</summary>
     [Fact]
     public async Task EveryPageAnswered_LeavesTheFaceCheckPhotosAndConsent()
     {
@@ -490,8 +516,126 @@ public class RegistrationDraftServiceTests
         Assert.Equal(RegistrationProgress.Liveness, done.NextStep);
         Assert.Equal(
             RegistrationProgress.Ordered.Except(
-                [RegistrationProgress.Photos, RegistrationProgress.Liveness, RegistrationProgress.Consent]),
+                [
+                    RegistrationProgress.Photos, RegistrationProgress.Liveness, RegistrationProgress.Voice,
+                    RegistrationProgress.Notifications, RegistrationProgress.Consent,
+                ]),
             done.Completed);
+    }
+
+    // ---- prompts, recordings, notifications and profile extras -----------------------------
+
+    [Fact]
+    public async Task Prompts_AreStoredInOrder_WithTrimmedText_AndBlankTextAsNone()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+
+        var progress = await h.Service.PatchAsync(
+            id,
+            new UpdateRegistrationRequest(Prompts: [new("soft", "  Kindness.  "), new("know", "   ")]),
+            default);
+
+        Assert.Equal(
+            [new PromptAnswerDto("soft", "Kindness.", false), new PromptAnswerDto("know", null, false)],
+            progress.ProfileAnswers!.Prompts);
+        // One typed answer is not enough; the blank one still needs typing or a recording.
+        Assert.DoesNotContain(RegistrationProgress.Voice, progress.Completed);
+    }
+
+    /// <summary>A prompt answered only by recording counts, and the response says it has audio.</summary>
+    [Fact]
+    public async Task RecordedPrompts_CountAsAnswered()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        await h.Service.PatchAsync(id, new UpdateRegistrationRequest(Prompts: [new("know"), new("soft", "Typed.")]), default);
+        h.Voice.Add(id, "know");
+
+        var progress = await h.Service.GetAsync(id, default);
+
+        Assert.Contains(RegistrationProgress.Voice, progress.Completed);
+        Assert.True(progress.ProfileAnswers!.Prompts.Single(p => p.PromptId == "know").HasAudio);
+        Assert.False(progress.ProfileAnswers.Prompts.Single(p => p.PromptId == "soft").HasAudio);
+    }
+
+    /// <summary>Dropping a prompt removes its recording; a prompt that stays keeps its own.</summary>
+    [Fact]
+    public async Task ChangingThePromptList_RemovesRecordingsForDroppedPrompts()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        await h.Service.PatchAsync(id, new UpdateRegistrationRequest(Prompts: [new("know"), new("soft")]), default);
+        h.Voice.Add(id, "know");
+        h.Voice.Add(id, "soft");
+
+        var progress = await h.Service.PatchAsync(
+            id,
+            new UpdateRegistrationRequest(Prompts: [new("soft"), new("value", "New one.")]),
+            default);
+
+        Assert.Equal(["soft"], h.Voice.PromptIds(id));
+        Assert.Equal(["soft", "value"], progress.ProfileAnswers!.Prompts.Select(p => p.PromptId));
+        Assert.Contains(RegistrationProgress.Voice, progress.Completed);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Notifications_EitherAnswer_SetsEverySwitch_AndFinishesTheStep(bool on)
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+
+        var progress = await h.Service.PatchAsync(id, new UpdateRegistrationRequest(NotificationsOn: on), default);
+
+        Assert.Equal(on, progress.Settings!.NotifyIntroductions);
+        Assert.Equal(on, progress.Settings.NotifyReplies);
+        Assert.Equal(on, progress.Settings.NotifyWeekendSurprise);
+        Assert.Equal(on, (await h.Settings.FindByUserIdAsync(id, default))!.NotifyIntroductions);
+        Assert.Contains(RegistrationProgress.Notifications, progress.Completed);
+    }
+
+    /// <summary>The registration answer is a starting point; Settings changes each switch on its own.</summary>
+    [Fact]
+    public async Task Notifications_KeepOtherSettings_LikeHiddenFields()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+        await h.Settings.UpsertAsync(
+            Aynera.Domain.Settings.Records.MemberSettingsRecord.Empty(id) with
+            {
+                Visibility = new Dictionary<string, bool> { ["gender"] = false },
+            },
+            default);
+
+        var progress = await h.Service.PatchAsync(id, new UpdateRegistrationRequest(NotificationsOn: true), default);
+
+        Assert.False(progress.Settings!.Visibility["gender"]);
+        Assert.True(progress.Settings.NotifyIntroductions);
+    }
+
+    [Fact]
+    public async Task DealbreakerAndRhythm_AreStored_AndAnEmptyDealbreakerClears()
+    {
+        var h = new Harness();
+        var id = await AnswerEveryPageAsync(h);
+
+        var saved = await h.Service.PatchAsync(
+            id,
+            new UpdateRegistrationRequest(
+                Dealbreaker: " I read the last page first. ",
+                Rhythm: new Dictionary<string, string> { ["socialEnergy"] = "Small groups", ["weekends"] = "Slow" }),
+            default);
+
+        Assert.Equal("I read the last page first.", saved.ProfileAnswers!.Dealbreaker);
+        Assert.Equal("Small groups", saved.ProfileAnswers.Rhythm["socialEnergy"]);
+        // Everyday answers from the earlier page are untouched.
+        Assert.Equal("no", saved.ProfileAnswers.Lifestyle["drink"].Option);
+
+        var cleared = await h.Service.PatchAsync(id, new UpdateRegistrationRequest(Dealbreaker: ""), default);
+        Assert.Null(cleared.ProfileAnswers!.Dealbreaker);
+        Assert.Equal(2, cleared.ProfileAnswers.Rhythm.Count);
     }
 
     // ---- everyday, belief and vibe answers, pages 23 to 34 ---------------------------------
@@ -539,9 +683,12 @@ public class RegistrationDraftServiceTests
         Assert.Equal("practising", after.ProfileAnswers.Beliefs["faith"].Option);
     }
 
-    /// <summary>A page carrying one answer must leave the rest of its own category alone.</summary>
+    /// <summary>
+    /// A page sends its whole category, so a question it leaves out is unanswered — the way a member
+    /// declines one. The other category is untouched.
+    /// </summary>
     [Fact]
-    public async Task AnswersMergePerQuestion()
+    public async Task EachCategoryIsReplaced_SoAClearedQuestionIsGone()
     {
         var h = new Harness();
         var id = h.AddMember();
@@ -555,13 +702,27 @@ public class RegistrationDraftServiceTests
             }),
             default);
 
-        var after = await h.Service.PatchAsync(
+        await h.Service.PatchAsync(
             id,
-            new UpdateRegistrationRequest(Lifestyle: new Dictionary<string, MemberAnswer> { ["diet"] = new("vegetarian") }),
+            new UpdateRegistrationRequest(Beliefs: new Dictionary<string, MemberAnswer> { ["faith"] = new("practising") }),
             default);
 
-        Assert.Equal(3, after.ProfileAnswers!.Lifestyle.Count);
-        Assert.Equal("sometimes", after.ProfileAnswers.Lifestyle["drink"].Option);
+        var after = await h.Service.PatchAsync(
+            id,
+            new UpdateRegistrationRequest(Lifestyle: new Dictionary<string, MemberAnswer>
+            {
+                ["drink"] = new("sometimes"),
+                ["diet"] = new("vegetarian"),
+            }),
+            default);
+
+        Assert.Equal(["diet", "drink"], after.ProfileAnswers!.Lifestyle.Keys.Order());
+        Assert.Equal("practising", after.ProfileAnswers.Beliefs["faith"].Option);
+
+        var cleared = await h.Service.PatchAsync(
+            id, new UpdateRegistrationRequest(Lifestyle: new Dictionary<string, MemberAnswer>()), default);
+        Assert.Empty(cleared.ProfileAnswers!.Lifestyle);
+        Assert.Single(cleared.ProfileAnswers.Beliefs);
     }
 
     [Fact]
@@ -581,7 +742,11 @@ public class RegistrationDraftServiceTests
 
         var after = await h.Service.PatchAsync(
             id,
-            new UpdateRegistrationRequest(Lifestyle: new Dictionary<string, MemberAnswer> { ["drink"] = new("no") }),
+            new UpdateRegistrationRequest(Lifestyle: new Dictionary<string, MemberAnswer>
+            {
+                ["drink"] = new("no"),
+                ["smoke"] = new("no"),
+            }),
             default);
 
         Assert.Equal("no", after.ProfileAnswers!.Lifestyle["drink"].Option);

@@ -21,5 +21,5 @@ public sealed record UpdateMemberProfileRequest(
     string? Hometown = null,
     string? Work = null,
     string? Religion = null,
-    /// <summary>Set false for "prefer not to say" — hides the gender, still matches on it.</summary>
+    /// <summary>Whether the gender shows on the profile. False hides it; matching still uses it.</summary>
     bool GenderIsPublic = true);

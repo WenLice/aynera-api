@@ -124,9 +124,8 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
     [Theory]
     [InlineData("\"Female\"", "Female")]
     [InlineData("\"ThirdGender\"", "ThirdGender")]
-    [InlineData("\"PreferNotToSay\"", "PreferNotToSay")]
     [InlineData("1", "Female")]
-    [InlineData("3", "PreferNotToSay")]
+    [InlineData("2", "ThirdGender")]
     public async Task Gender_IsAcceptedByNameAndByNumber(string genderJson, string expected)
     {
         var client = await PhoneVerifiedClientAsync();
@@ -150,8 +149,36 @@ public sealed class MemberProfileEndpointsTests(AuthApiFactory factory)
     }
 
     /// <summary>
-    /// "Prefer not to say" hides the gender; it does not withdraw the member from matching,
-    /// so the gender is still stored and still returned to the member themselves.
+    /// Only the three genders exist: every member states one, and hiding it is the separate
+    /// visibility switch. Anything else is refused, by name or by number.
+    /// </summary>
+    [Theory]
+    [InlineData("\"Other\"")]
+    [InlineData("3")]
+    public async Task AnyOtherGender_IsRefused(string genderJson)
+    {
+        var client = await PhoneVerifiedClientAsync();
+
+        var json = $$"""
+            {
+              "name": "Ada Lovelace",
+              "gender": {{genderJson}},
+              "dateOfBirth": "{{Adult:yyyy-MM-dd}}",
+              "city": "Bangalore",
+              "hometown": "Pune"
+            }
+            """;
+
+        var response = await client.PutAsync(
+            "/members/me/profile",
+            new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Hiding the gender does not withdraw the member from matching, so the gender is still
+    /// stored and still returned to the member themselves.
     /// </summary>
     [Fact]
     public async Task GenderIsPublic_DefaultsTrue_AndCanBeTurnedOff()

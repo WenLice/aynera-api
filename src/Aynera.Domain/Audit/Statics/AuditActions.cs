@@ -43,6 +43,8 @@ public static class AuditActions
     public const string IntroVideoUploaded = "intro_video_uploaded";
     public const string LivenessChecked = "liveness_checked";
     public const string IntroVideoDeleted = "intro_video_deleted";
+    public const string VoiceAnswerUploaded = "voice_answer_uploaded";
+    public const string VoiceAnswerDeleted = "voice_answer_deleted";
     public const string AdminCreated = "admin_created";
     public const string AdminDeactivated = "admin_deactivated";
     public const string AdminActivated = "admin_activated";
@@ -58,6 +60,7 @@ public static class AuditSubjectTypes
     public const string MemberPhoto = "member_photo";
     public const string IntroductionVideo = "introduction_video";
     public const string LivenessSession = "liveness_session";
+    public const string VoiceAnswer = "voice_answer";
 }
 
 public static class AuditClients

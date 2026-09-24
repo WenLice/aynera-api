@@ -1,3 +1,4 @@
+using Aynera.Domain.Settings.Statics;
 using AutoMapper;
 using Aynera.Application.Features.Auth.Repositories;
 using Aynera.Domain.Auth.Records;
@@ -543,6 +544,7 @@ public sealed class UserRepository : IUserRepository
         cancellationToken.ThrowIfCancellationRequested();
         var query = _userManager.Users.AsNoTracking()
             .Include(u => u.Profile)
+            .Include(u => u.Settings)
             .Where(u => u.AccountKind == AccountKind.Member);
 
         if (isActive is not null)
@@ -583,6 +585,7 @@ public sealed class UserRepository : IUserRepository
         cancellationToken.ThrowIfCancellationRequested();
         var entity = await _userManager.Users.AsNoTracking()
             .Include(u => u.Profile)
+            .Include(u => u.Settings)
             .FirstOrDefaultAsync(
                 u => u.Id == userId && u.AccountKind == AccountKind.Member,
                 cancellationToken);
@@ -609,7 +612,13 @@ public sealed class UserRepository : IUserRepository
             entity.Profile?.HeightCm,
             entity.Profile?.Hometown,
             entity.Profile?.Work,
-            entity.Profile?.GenderIsPublic);
+            entity.Profile is null
+                ? null
+                : VisibilityKeys.IsVisible(
+                    entity.Settings is null || entity.Settings.IsDeleted
+                        ? new Dictionary<string, bool>()
+                        : MemberSettingsRows.Read(entity.Settings.Visibility),
+                    VisibilityKeys.Gender));
 
     public async Task<int> CountActiveAdminsAsync(CancellationToken cancellationToken)
     {

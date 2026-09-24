@@ -1,3 +1,4 @@
+using Aynera.Domain.Answers.Statics;
 using Aynera.Domain.Media.Statics;
 using Aynera.Domain.Photos.Enums;
 using Aynera.Persistence.Entities;
@@ -22,6 +23,7 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
     public DbSet<MemberAdmission> MemberAdmissions => Set<MemberAdmission>();
     public DbSet<MemberConsent> MemberConsents => Set<MemberConsent>();
     public DbSet<MemberMedia> MemberMedia => Set<MemberMedia>();
+    public DbSet<MemberSettings> MemberSettings => Set<MemberSettings>();
     public DbSet<LivenessSession> LivenessSessions => Set<LivenessSession>();
     public DbSet<EarlyAccessSignup> EarlyAccessSignups => Set<EarlyAccessSignup>();
     public DbSet<EarlyAccessCity> EarlyAccessCities => Set<EarlyAccessCity>();
@@ -93,7 +95,6 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
                 .HasConversion<string>()
                 .HasMaxLength(32)
                 .IsRequired();
-            entity.Property(x => x.GenderIsPublic).IsRequired();
             entity.Property(x => x.DateOfBirth).IsRequired();
             entity.Property(x => x.City).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Hometown).HasMaxLength(100).IsRequired();
@@ -177,6 +178,9 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
             entity.Property(x => x.Lifestyle).HasColumnType("jsonb").IsRequired();
             entity.Property(x => x.Beliefs).HasColumnType("jsonb").IsRequired();
             entity.Property(x => x.Vibe).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.Prompts).HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb").IsRequired();
+            entity.Property(x => x.Rhythm).HasColumnType("jsonb").HasDefaultValueSql("'{}'::jsonb").IsRequired();
+            entity.Property(x => x.Dealbreaker).HasMaxLength(AnswerRules.DealbreakerMaxLength);
             entity.Property(x => x.CreatedAtUtc).IsRequired();
             entity.HasIndex(x => x.IsDeleted);
             entity.HasQueryFilter(x => !x.IsDeleted);
@@ -186,6 +190,23 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
             entity.HasOne(x => x.User)
                 .WithOne()
                 .HasForeignKey<MemberProfileAnswers>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<MemberSettings>(entity =>
+        {
+            entity.ToTable("MemberSettings");
+            entity.HasKey(x => x.UserId);
+            entity.Property(x => x.Visibility).HasColumnType("jsonb").HasDefaultValueSql("'{}'::jsonb").IsRequired();
+            entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.HasIndex(x => x.IsDeleted);
+            // Matching will skip paused members, so the flag is indexed from the start.
+            entity.HasIndex(x => x.IntroductionsPaused);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+
+            entity.HasOne(x => x.User)
+                .WithOne(x => x.Settings)
+                .HasForeignKey<MemberSettings>(x => x.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -239,6 +260,7 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(x => x.StorageKey).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.PromptId).HasMaxLength(32);
             entity.Property(x => x.Caption).HasMaxLength(MemberMediaRules.CaptionMaxLength);
             entity.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
             entity.Property(x => x.FaceMatchStatus)
@@ -252,14 +274,17 @@ public sealed class AyneraDbContext : IdentityDbContext<AppUser, IdentityRole<Gu
             entity.HasIndex(x => x.UserId);
             entity.HasIndex(x => x.IsDeleted);
 
-            // One live photo per slot, and one live video of each kind. Soft-deleted rows are
-            // history and do not hold the place.
+            // One live photo per slot, one live video of each kind, and one live recording per
+            // prompt. Soft-deleted rows are history and do not hold the place.
             entity.HasIndex(x => new { x.UserId, x.Kind, x.Index })
                 .IsUnique()
                 .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NOT NULL");
             entity.HasIndex(x => new { x.UserId, x.Kind })
                 .IsUnique()
-                .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NULL");
+                .HasFilter("\"IsDeleted\" = false AND \"Index\" IS NULL AND \"PromptId\" IS NULL");
+            entity.HasIndex(x => new { x.UserId, x.Kind, x.PromptId })
+                .IsUnique()
+                .HasFilter("\"IsDeleted\" = false AND \"PromptId\" IS NOT NULL");
 
             entity.HasQueryFilter(x => !x.IsDeleted);
 

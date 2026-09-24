@@ -22,6 +22,11 @@ public sealed class MemberMedia : ISoftDeletable
     /// <summary>The photo slot, 1-based — the same number as the <c>photo_N</c> file name. Null for videos.</summary>
     public int? Index { get; set; }
 
+    /// <summary>
+    /// The prompt a <c>VoiceAnswer</c> answers — its key, e.g. <c>know</c>. Null for every other kind.
+    /// </summary>
+    public string? PromptId { get; set; }
+
     /// <summary>The object key in the bucket, e.g. <c>{userId}/photo_2.jpg</c>. Never a URL.</summary>
     public string StorageKey { get; set; } = string.Empty;
 

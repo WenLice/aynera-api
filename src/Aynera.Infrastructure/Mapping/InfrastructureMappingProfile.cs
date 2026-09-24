@@ -42,8 +42,7 @@ public sealed class InfrastructureMappingProfile : Profile
                 src.Nickname,
                 src.HeightCm,
                 src.Work,
-                src.Religion,
-                src.GenderIsPublic))
+                src.Religion))
             .ForAllMembers(o => o.Ignore());
 
         CreateMap<MemberProfileRecord, MemberProfile>()
@@ -51,7 +50,6 @@ public sealed class InfrastructureMappingProfile : Profile
             .ForMember(d => d.City, o => o.MapFrom(s => s.City.Trim()))
             .ForMember(d => d.CityId, o => o.MapFrom(s => s.CityId))
             .ForMember(d => d.HeightCm, o => o.MapFrom(s => s.HeightCm))
-            .ForMember(d => d.GenderIsPublic, o => o.MapFrom(s => s.GenderIsPublic))
             .ForMember(
                 d => d.Nickname,
                 o => o.MapFrom(s => string.IsNullOrWhiteSpace(s.Nickname) ? null : s.Nickname.Trim()))

@@ -122,7 +122,8 @@ public class RegistrationProgressTests
             AllCategoriesAnswered(),
             photosComplete: true,
             consentsAccepted: true,
-            livenessPassed: true);
+            livenessPassed: true,
+            notificationsAnswered: true);
 
         Assert.Equal(RegistrationProgress.Ordered, completed);
         Assert.Null(RegistrationProgress.NextStep(completed));
@@ -147,9 +148,89 @@ public class RegistrationProgressTests
             AllCategoriesAnswered(),
             photosComplete: photos,
             consentsAccepted: consents,
-            livenessPassed: liveness);
+            livenessPassed: liveness,
+            notificationsAnswered: true);
 
         Assert.Equal(expected, RegistrationProgress.NextStep(completed));
+    }
+
+    /// <summary>
+    /// Prompts sit after the photos and before notifications, and two answered prompts finish the
+    /// step — typed, recorded, or one of each. A recording for a prompt no longer chosen is ignored.
+    /// </summary>
+    [Theory]
+    [InlineData("typed,typed", "", true)]
+    [InlineData("rec,rec", "a,b", true)]
+    [InlineData("typed,rec", "b", true)]
+    [InlineData("typed,none", "", false)]
+    [InlineData("none,none", "a,b", true)]
+    [InlineData("typed,none", "z", false)]
+    [InlineData("typed", "", false)]
+    public void VoiceStep_NeedsTwoAnsweredPrompts(string prompts, string recorded, bool done)
+    {
+        var chosen = prompts.Split(',')
+            .Select((kind, i) => new MemberPromptAnswer(
+                ((char)('a' + i)).ToString(),
+                kind == "typed" ? "A real sentence." : null))
+            .ToList();
+        var recordings = recorded.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+        var completed = RegistrationProgress.Completed(
+            phoneConfirmed: true,
+            emailConfirmed: true,
+            CompleteWithPreferences(),
+            AllCategoriesAnswered() with { Prompts = chosen },
+            photosComplete: true,
+            livenessPassed: true,
+            recordedPromptIds: recordings);
+
+        Assert.Equal(done, completed.Contains(RegistrationProgress.Voice));
+        Assert.Equal(
+            done ? RegistrationProgress.Notifications : RegistrationProgress.Voice,
+            RegistrationProgress.NextStep(completed));
+    }
+
+    /// <summary>
+    /// The intro video is optional and a skip stores nothing, so it is not a step at all: a member
+    /// who has filled their photos resumes on the prompts.
+    /// </summary>
+    [Fact]
+    public void IntroVideo_IsNotAResumeStop()
+    {
+        Assert.DoesNotContain("video", RegistrationProgress.Ordered);
+
+        var completed = RegistrationProgress.Completed(
+            phoneConfirmed: true,
+            emailConfirmed: true,
+            CompleteWithPreferences(),
+            AllCategoriesAnswered() with { Prompts = [] },
+            photosComplete: true,
+            livenessPassed: true);
+
+        Assert.Equal(RegistrationProgress.Voice, RegistrationProgress.NextStep(completed));
+    }
+
+    [Fact]
+    public void Notifications_EitherAnswerFinishesTheStep_ThenConsent()
+    {
+        var withoutAnswer = RegistrationProgress.Completed(
+            phoneConfirmed: true,
+            emailConfirmed: true,
+            CompleteWithPreferences(),
+            AllCategoriesAnswered(),
+            photosComplete: true,
+            livenessPassed: true);
+        Assert.Equal(RegistrationProgress.Notifications, RegistrationProgress.NextStep(withoutAnswer));
+
+        var answered = RegistrationProgress.Completed(
+            phoneConfirmed: true,
+            emailConfirmed: true,
+            CompleteWithPreferences(),
+            AllCategoriesAnswered(),
+            photosComplete: true,
+            livenessPassed: true,
+            notificationsAnswered: true);
+        Assert.Equal(RegistrationProgress.Consent, RegistrationProgress.NextStep(answered));
     }
 
     /// <summary>
@@ -191,7 +272,10 @@ public class RegistrationProgressTests
             Guid.NewGuid(),
             new Dictionary<string, MemberAnswer> { ["drink"] = new("no") },
             new Dictionary<string, MemberAnswer> { ["faith"] = new("not-religious") },
-            ["reading"]);
+            ["reading"],
+            [new MemberPromptAnswer("know", "Something real."), new MemberPromptAnswer("soft", "Also real.")],
+            null,
+            new Dictionary<string, string>());
 
     /// <summary>
     /// An open upper end is an answer, not a gap, so preferences are complete without a maximum age.

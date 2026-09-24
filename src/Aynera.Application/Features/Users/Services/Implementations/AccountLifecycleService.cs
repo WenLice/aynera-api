@@ -8,6 +8,9 @@ using Aynera.Application.Features.Preferences.Repositories;
 using Aynera.Application.Features.Profiles.Repositories;
 using Aynera.Application.Features.Users.Services.Interfaces;
 using Aynera.Application.Features.Videos.Repositories;
+using Aynera.Application.Features.Answers.Repositories;
+using Aynera.Application.Features.Voice.Repositories;
+using Aynera.Application.Features.Settings.Repositories;
 using Aynera.Domain.Audit.Records;
 using Aynera.Domain.Audit.Statics;
 using Aynera.Domain.Auth.Enums;
@@ -39,6 +42,9 @@ public sealed class AccountLifecycleService : IAccountLifecycleService
     private readonly ILogger<AccountLifecycleService> _logger;
     private readonly OtpOptions _otpOptions;
     private readonly JwtOptions _jwtOptions;
+    private readonly IMemberProfileAnswersRepository _answers;
+    private readonly IVoiceAnswerRepository _voice;
+    private readonly IMemberSettingsRepository _settings;
 
     public AccountLifecycleService(
         IUserRepository users,
@@ -55,7 +61,10 @@ public sealed class AccountLifecycleService : IAccountLifecycleService
         ISmsService sms,
         IEmailService email,
         IOptions<OtpOptions> otpOptions,
-        IOptions<JwtOptions> jwtOptions)
+        IOptions<JwtOptions> jwtOptions,
+        IMemberProfileAnswersRepository answers,
+        IVoiceAnswerRepository voice,
+        IMemberSettingsRepository settings)
     {
         _transaction = transaction;
         _emails = emails;
@@ -72,6 +81,9 @@ public sealed class AccountLifecycleService : IAccountLifecycleService
         _logger = logger;
         _otpOptions = otpOptions.Value;
         _jwtOptions = jwtOptions.Value;
+        _answers = answers;
+        _voice = voice;
+        _settings = settings;
     }
 
     public async Task DeleteMemberAsync(Guid userId, CancellationToken cancellationToken)
@@ -85,6 +97,9 @@ public sealed class AccountLifecycleService : IAccountLifecycleService
             await _preferences.SoftDeleteByUserIdAsync(userId, ct);
             await _photos.SoftDeleteAllForUserAsync(userId, ct);
             await _introductionVideos.SoftDeleteByUserIdAsync(userId, ct);
+            await _voice.SoftDeleteByUserIdAsync(userId, ct);
+            await _answers.SoftDeleteByUserIdAsync(userId, ct);
+            await _settings.SoftDeleteByUserIdAsync(userId, ct);
             await _emails.CancelAsync(userId, ct);
             await _users.SoftDeleteMemberAsync(userId, ct);
             return true;

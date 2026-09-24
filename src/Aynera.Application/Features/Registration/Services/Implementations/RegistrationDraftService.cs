@@ -29,6 +29,11 @@ using Aynera.Application.Features.Photos.Repositories;
 using Aynera.Application.Features.Liveness.Repositories;
 using Aynera.Domain.Liveness.Enums;
 using Aynera.Domain.Admissions.Statics;
+using Aynera.Application.Features.Voice.Repositories;
+using Aynera.Application.Features.Settings.Repositories;
+using Aynera.Application.Features.Settings.Services.Implementations;
+using Aynera.Domain.Settings.Records;
+using Aynera.Domain.Settings.Requests;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -56,6 +61,8 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
     private readonly IMemberPhotoRepository _photos;
     private readonly IMemberConsentRepository _consents;
     private readonly ILivenessRepository _liveness;
+    private readonly IVoiceAnswerRepository _voice;
+    private readonly IMemberSettingsRepository _settings;
     private readonly PhotoOptions _photoOptions;
     private readonly AdmissionOptions _admissionOptions;
     private readonly IMapper _mapper;
@@ -72,6 +79,8 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
         IMemberPhotoRepository photos,
         IMemberConsentRepository consents,
         ILivenessRepository liveness,
+        IVoiceAnswerRepository voice,
+        IMemberSettingsRepository settings,
         IOptions<PhotoOptions> photoOptions,
         IOptions<AdmissionOptions> admissionOptions,
         IMapper mapper,
@@ -87,6 +96,8 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
         _photos = photos;
         _consents = consents;
         _liveness = liveness;
+        _voice = voice;
+        _settings = settings;
         _photoOptions = photoOptions.Value;
         _admissionOptions = admissionOptions.Value;
         _mapper = mapper;
@@ -148,10 +159,37 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
         // hold data that cannot be stored until it is complete, and every one of these questions is
         // optional — so their own table can take them straight away, one page at a time.
         var profileAnswers = state.ProfileAnswers;
-        if (request.Lifestyle is not null || request.Beliefs is not null || request.Vibe is not null)
+        var recordedPromptIds = state.RecordedPromptIds;
+        if (request.HasProfileAnswers)
         {
             profileAnswers = await _answers.UpsertAsync(
                 MergeAnswers(profileAnswers ?? MemberProfileAnswersRecord.Empty(userId), request),
+                cancellationToken);
+
+            // A recording answers one prompt. Once that prompt leaves the list nobody can see the
+            // question it answers, so the recording goes too — after the list is saved, so a failure
+            // here leaves at worst a recording the next list change removes.
+            if (request.Prompts is not null)
+            {
+                var kept = profileAnswers.Prompts.Select(p => p.PromptId).ToList();
+                await _voice.SoftDeleteExceptAsync(userId, kept, cancellationToken);
+                recordedPromptIds = recordedPromptIds.Where(kept.Contains).ToList();
+            }
+        }
+
+        // The page asks one question; it sets every notification switch, and each can be changed
+        // on its own later in Settings.
+        var settings = state.Settings;
+        if (request.NotificationsOn is { } notificationsOn)
+        {
+            settings = await _settings.UpsertAsync(
+                MemberSettingsService.Apply(
+                    settings ?? MemberSettingsRecord.Empty(userId),
+                    new UpdateMemberSettingsRequest(
+                        NotifyIntroductions: notificationsOn,
+                        NotifyReplies: notificationsOn,
+                        NotifyWeekendSurprise: notificationsOn),
+                    MemberSettingsService.Microseconds(DateTimeOffset.UtcNow)),
                 cancellationToken);
         }
 
@@ -172,12 +210,18 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
             await _drafts.UpsertAsync(userId, remaining, cancellationToken);
         }
 
-        // A page write never touches photos or consents, so their state carries over as loaded.
+        // A page write never touches photos, the video or consents, so their state carries over as loaded.
         return Progress(
             user,
-            new State(
-                remaining, profile, preferences, profileAnswers,
-                state.PhotosComplete, state.ConsentsAccepted, state.LivenessPassed));
+            state with
+            {
+                Draft = remaining,
+                Profile = profile,
+                Preferences = preferences,
+                ProfileAnswers = profileAnswers,
+                RecordedPromptIds = recordedPromptIds,
+                Settings = settings,
+            });
     }
 
     /// <summary>
@@ -201,7 +245,9 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
                 _admissionOptions.RequiredConsentVersions,
                 await _consents.ListByUserIdAsync(userId, cancellationToken)).Count == 0,
             (await _liveness.FindLatestCompletedAsync(userId, cancellationToken))?.Outcome
-                == LivenessOutcome.Passed.ToString());
+                == LivenessOutcome.Passed.ToString(),
+            await _voice.ListPromptIdsAsync(userId, cancellationToken),
+            await _settings.FindByUserIdAsync(userId, cancellationToken));
     }
 
     private sealed record State(
@@ -211,7 +257,9 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
         MemberProfileAnswersRecord? ProfileAnswers,
         bool PhotosComplete,
         bool ConsentsAccepted,
-        bool LivenessPassed)
+        bool LivenessPassed,
+        IReadOnlyList<string> RecordedPromptIds,
+        MemberSettingsRecord? Settings)
     {
         /// <summary>The draft plus whatever has already been promoted, as one answer sheet.</summary>
         public RegistrationAnswers Answers => FromPreferences(FromProfile(Draft, Profile), Preferences);
@@ -239,7 +287,9 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
             state.ProfileAnswers,
             state.PhotosComplete,
             state.ConsentsAccepted,
-            state.LivenessPassed);
+            state.LivenessPassed,
+            recordedPromptIds: state.RecordedPromptIds,
+            notificationsAnswered: state.Settings?.NotifyIntroductions is not null);
 
         return new RegistrationProgressDto(
             state.Draft,
@@ -252,16 +302,26 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
                 : new MemberProfileAnswersDto(
                     state.ProfileAnswers.Lifestyle,
                     state.ProfileAnswers.Beliefs,
-                    state.ProfileAnswers.Vibe));
+                    state.ProfileAnswers.Vibe,
+                    state.ProfileAnswers.Prompts
+                        .Select(p => new PromptAnswerDto(
+                            p.PromptId,
+                            p.Text,
+                            state.RecordedPromptIds.Contains(p.PromptId, StringComparer.Ordinal)))
+                        .ToList(),
+                    state.ProfileAnswers.Dealbreaker,
+                    state.ProfileAnswers.Rhythm),
+            state.Settings is null ? null : MemberSettingsService.ToDto(state.Settings));
     }
 
     /// <summary>
     /// Applies one page's everyday, belief or vibe answers.
     /// <para>
-    /// The two keyed categories merge per question, so a page carrying one answer leaves the rest
-    /// alone. <c>Vibe</c> replaces wholesale, because it is a set the member edits as a whole —
-    /// merging it would make deselecting a chip impossible, and the app already holds the full
-    /// selection to send.
+    /// Every category replaces what is stored: each page shows its whole category and sends every
+    /// answer on it, so a question the member cleared — the only way to decline one, now that there
+    /// is no "prefer not to say" — is removed rather than left behind by a merge. The same holds for
+    /// vibe (deselecting a chip), prompts and rhythm. The dealbreaker follows the draft rule — null
+    /// leaves it, an empty string clears it.
     /// </para>
     /// </summary>
     private static MemberProfileAnswersRecord MergeAnswers(
@@ -269,28 +329,26 @@ public sealed class RegistrationDraftService : IRegistrationDraftService
         UpdateRegistrationRequest request) =>
         current with
         {
-            Lifestyle = MergeCategory(current.Lifestyle, request.Lifestyle),
-            Beliefs = MergeCategory(current.Beliefs, request.Beliefs),
+            Lifestyle = Replace(current.Lifestyle, request.Lifestyle),
+            Beliefs = Replace(current.Beliefs, request.Beliefs),
             Vibe = request.Vibe is null ? current.Vibe : [.. request.Vibe],
+            Prompts = request.Prompts is null
+                ? current.Prompts
+                : request.Prompts
+                    .Select(p => new MemberPromptAnswer(
+                        p.PromptId,
+                        string.IsNullOrWhiteSpace(p.Text) ? null : p.Text.Trim()))
+                    .ToList(),
+            Dealbreaker = Optional(request.Dealbreaker?.Trim(), current.Dealbreaker),
+            Rhythm = request.Rhythm is null
+                ? current.Rhythm
+                : new Dictionary<string, string>(request.Rhythm, StringComparer.Ordinal),
         };
 
-    private static IReadOnlyDictionary<string, MemberAnswer> MergeCategory(
+    private static IReadOnlyDictionary<string, MemberAnswer> Replace(
         IReadOnlyDictionary<string, MemberAnswer> current,
-        IReadOnlyDictionary<string, MemberAnswer>? sent)
-    {
-        if (sent is null)
-        {
-            return current;
-        }
-
-        var merged = new Dictionary<string, MemberAnswer>(current, StringComparer.Ordinal);
-        foreach (var (question, answer) in sent)
-        {
-            merged[question] = answer;
-        }
-
-        return merged;
-    }
+        IReadOnlyDictionary<string, MemberAnswer>? sent) =>
+        sent is null ? current : new Dictionary<string, MemberAnswer>(sent, StringComparer.Ordinal);
 
     /// <summary>
     /// Applies one page's answers. A null field was not sent and is left alone; an empty string

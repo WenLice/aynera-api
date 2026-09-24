@@ -19,7 +19,24 @@ public static class MediaKeys
     /// <summary>The reference frame from the liveness check. JPEG, one per member, replaced on a re-check.</summary>
     public static string Liveness(Guid userId) => $"{Folder(userId)}/liveness.jpg";
 
+    /// <summary>
+    /// A spoken prompt answer, named by the prompt it answers so the bucket reads like the profile.
+    /// The id is validated to a path-safe shape (<c>PromptRules.IsValidPromptId</c>) before it gets here.
+    /// </summary>
+    public static string VoiceAnswer(Guid userId, string promptId, string contentType) =>
+        $"{Folder(userId)}/voice_{promptId}.{AudioExtension(contentType)}";
+
     public static string Folder(Guid userId) => userId.ToString("D");
+
+    /// <summary>Phones record AAC in an MP4 container (<c>.m4a</c>); browsers usually record WebM/Opus.</summary>
+    public static string AudioExtension(string contentType) =>
+        contentType.Split(';', 2)[0].Trim().ToLowerInvariant() switch
+        {
+            "audio/webm" => "webm",
+            "audio/ogg" => "ogg",
+            "audio/mpeg" => "mp3",
+            _ => "m4a",
+        };
 
     /// <summary>
     /// The extension follows the real format, so a QuickTime upload is not mislabelled as MP4 when

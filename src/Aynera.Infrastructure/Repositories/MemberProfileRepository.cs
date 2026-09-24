@@ -4,6 +4,7 @@ using Aynera.Application.Features.Auth.Repositories;
 using Aynera.Domain.Auth.Records;
 using Aynera.Domain.Auth.Enums;
 using Aynera.Domain.Auth.Exceptions;
+using Aynera.Domain.Settings.Statics;
 using Aynera.Persistence;
 using Aynera.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -31,15 +32,18 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         _logger.LogDebug("MemberProfile CreateAsync user {UserId}", profile.UserId);
         if (!Enum.TryParse<Gender>(profile.Gender, ignoreCase: true, out var gender))
         {
-            throw new AuthException("invalid_gender", "Gender must be Male, Female, ThirdGender, or PreferNotToSay.");
+            throw new AuthException("invalid_gender", "Gender must be Male, Female or ThirdGender.");
         }
 
         var entity = _mapper.Map<MemberProfile>(profile);
         entity.Gender = gender;
 
         _db.MemberProfiles.Add(entity);
+        // Whether the gender shows lives with the member's other visibility choices, written in the
+        // same save so the profile and its visibility can never disagree.
+        await SetGenderVisibilityAsync(profile, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
-        return _mapper.Map<MemberProfileRecord>(entity);
+        return _mapper.Map<MemberProfileRecord>(entity) with { GenderIsPublic = profile.GenderIsPublic };
     }
 
     public async Task<MemberProfileRecord> UpsertAsync(
@@ -49,7 +53,7 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         _logger.LogDebug("MemberProfile UpsertAsync user {UserId}", profile.UserId);
         if (!Enum.TryParse<Gender>(profile.Gender, ignoreCase: true, out var gender))
         {
-            throw new AuthException("invalid_gender", "Gender must be Male, Female, ThirdGender, or PreferNotToSay.");
+            throw new AuthException("invalid_gender", "Gender must be Male, Female or ThirdGender.");
         }
 
         var existing = await _db.MemberProfiles
@@ -63,7 +67,6 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         existing.Name = profile.Name.Trim();
         existing.Nickname = Normalize(profile.Nickname);
         existing.Gender = gender;
-        existing.GenderIsPublic = profile.GenderIsPublic;
         existing.DateOfBirth = profile.DateOfBirth;
         existing.City = profile.City.Trim();
         existing.CityId = profile.CityId;
@@ -73,8 +76,9 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
         existing.Religion = Normalize(profile.Religion);
         existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
+        await SetGenderVisibilityAsync(profile, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
-        return _mapper.Map<MemberProfileRecord>(existing);
+        return _mapper.Map<MemberProfileRecord>(existing) with { GenderIsPublic = profile.GenderIsPublic };
     }
 
     private static string? Normalize(string? value) =>
@@ -86,8 +90,24 @@ public sealed class MemberProfileRepository : IMemberProfileRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
 
-        return entity is null ? null : _mapper.Map<MemberProfileRecord>(entity);
+        if (entity is null)
+        {
+            return null;
+        }
+
+        var visibility = await MemberSettingsRows.ReadVisibilityAsync(_db, userId, cancellationToken);
+        return _mapper.Map<MemberProfileRecord>(entity) with
+        {
+            GenderIsPublic = VisibilityKeys.IsVisible(visibility, VisibilityKeys.Gender),
+        };
     }
+
+    private Task SetGenderVisibilityAsync(MemberProfileRecord profile, CancellationToken cancellationToken) =>
+        MemberSettingsRows.SetVisibilityAsync(
+            _db,
+            profile.UserId,
+            [new KeyValuePair<string, bool>(VisibilityKeys.Gender, profile.GenderIsPublic)],
+            cancellationToken);
 
     public async Task SoftDeleteByUserIdAsync(Guid userId, CancellationToken cancellationToken)
     {

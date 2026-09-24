@@ -99,6 +99,8 @@ public static class DependencyInjection
         services.Configure<OtpOptions>(configuration.GetSection(OtpOptions.SectionName));
         services.Configure<PhotoOptions>(configuration.GetSection(PhotoOptions.SectionName));
         services.Configure<IntroductionVideoOptions>(configuration.GetSection(IntroductionVideoOptions.SectionName));
+        services.Configure<Aynera.Application.Features.Voice.Models.VoiceAnswerOptions>(
+            configuration.GetSection(Aynera.Application.Features.Voice.Models.VoiceAnswerOptions.SectionName));
         services.Configure<MediaAuthenticityOptions>(configuration.GetSection(MediaAuthenticityOptions.SectionName));
         services.Configure<EarlyAccessOptions>(configuration.GetSection(EarlyAccessOptions.SectionName));
         services.Configure<AdmissionOptions>(configuration.GetSection(AdmissionOptions.SectionName));
@@ -162,6 +164,8 @@ public static class DependencyInjection
         services.AddScoped<IMemberProfileAnswersRepository, MemberProfileAnswersRepository>();
         services.AddScoped<IMemberPhotoRepository, MemberPhotoRepository>();
         services.AddScoped<IIntroductionVideoRepository, IntroductionVideoRepository>();
+        services.AddScoped<Aynera.Application.Features.Voice.Repositories.IVoiceAnswerRepository, VoiceAnswerRepository>();
+        services.AddScoped<Aynera.Application.Features.Settings.Repositories.IMemberSettingsRepository, MemberSettingsRepository>();
         services.AddScoped<IEarlyAccessSignupRepository, EarlyAccessSignupRepository>();
         services.AddScoped<IEarlyAccessCityRepository, EarlyAccessCityRepository>();
         services.AddScoped<IMemberAdmissionRepository, MemberAdmissionRepository>();

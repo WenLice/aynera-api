@@ -8,6 +8,9 @@ using Aynera.Domain.Auth.Responses;
 using Aynera.Domain.Common;
 using Aynera.Domain.Registration.Requests;
 using Aynera.Domain.Registration.Responses;
+using Aynera.Application.Features.Settings.Services.Interfaces;
+using Aynera.Domain.Settings.Requests;
+using Aynera.Domain.Settings.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -29,14 +32,17 @@ public sealed class MembersController : BaseController
     private readonly IRegistrationDraftService _draft;
     private readonly IUserManagementService _userManagement;
     private readonly IAuthService _authService;
+    private readonly IMemberSettingsService _settings;
 
     public MembersController(
         IAuthService authService,
         IUserManagementService userManagement,
         IRegistrationService registration,
         IRegistrationDraftService draft,
-        IAccountLifecycleService lifecycle)
+        IAccountLifecycleService lifecycle,
+        IMemberSettingsService settings)
     {
+        _settings = settings;
         _authService = authService;
         _userManagement = userManagement;
         _registration = registration;
@@ -47,7 +53,7 @@ public sealed class MembersController : BaseController
     /// <summary>Register</summary>
     /// <remarks>
     /// Creates a new member account and profile.
-    /// Required: phone, name, gender (Male|Female|ThirdGender|PreferNotToSay), dateOfBirth (18+), city, email.
+    /// Required: phone, name, gender (Male|Female|ThirdGender), dateOfBirth (18+), city, email.
     /// <c>city</c> must be an active city in the shared city catalog (<c>GET /early-access/cities/GetAll</c>);
     /// the canonical catalog name and its <c>cityId</c> are stored. Unknown or closed cities fail with <c>city_not_supported</c>.
     /// Optional: nickname, heightCm, hometown, work, religion. Photos are uploaded separately via Photos Upload.
@@ -166,7 +172,7 @@ public sealed class MembersController : BaseController
     /// Writes the authenticated member's basic details, creating the profile row on the first save
     /// (the app's registration path arrives here with a phone-verified account and no profile yet).
     /// A full replace, not a patch: omitted optional fields are cleared.
-    /// Required: name, gender (Male|Female|ThirdGender|PreferNotToSay), dateOfBirth (18+), city.
+    /// Required: name, gender (Male|Female|ThirdGender), dateOfBirth (18+), city.
     /// Optional: nickname (2-100 characters), heightCm, hometown, work, religion.
     /// <c>name</c> is the member's own name — a first name or a full name, their choice.
     /// <c>nickname</c> is what strangers see before a mutual match; omitted means the first letter of <c>name</c>.
@@ -236,15 +242,28 @@ public sealed class MembersController : BaseController
     /// <c>lifestyle</c>, <c>beliefs</c> and <c>vibe</c> are the optional questions. They have no
     /// required set, so they are stored as they arrive rather than waiting to be promoted.
     /// <c>lifestyle</c> and <c>beliefs</c> are keyed by question —
-    /// <c>{"drink":{"option":"sometimes","public":true}}</c> — and merge per question, so a page
-    /// carrying one answer leaves the rest alone. <c>vibe</c> is a flat set of chip keys and
-    /// <b>replaces</b> what is stored, because it is edited as a whole and merging would make
-    /// deselecting a chip impossible; send the member's complete selection.
+    /// <c>{"drink":{"option":"sometimes","public":true}}</c>; <c>vibe</c> is a flat set of chip keys.
+    /// Each <b>replaces</b> its whole category: send every answer on the page, and a question left
+    /// out is unanswered. "Prefer not to say" is stored as an answer and has no visibility setting.
     /// </para>
     /// <para>
     /// <c>public</c> defaults to true and is per answer: answering is not the same as publishing.
     /// Question and option keys are stored as sent — with the question list living in the app, the
     /// server checks their shape but cannot check that they name a real question.
+    /// </para>
+    /// <para>
+    /// <c>prompts</c> is the member's full list of chosen conversation prompts, in order —
+    /// <c>[{"promptId":"know","text":"…"}]</c>, at most 3 — and <b>replaces</b> what is stored.
+    /// <c>text</c> is optional because a prompt can be answered by recording instead
+    /// (<c>POST voice-answers/Upload</c>); a recording for a prompt dropped from the list is removed.
+    /// The <c>voice</c> step is done once two prompts are answered, typed or spoken.
+    /// <c>dealbreaker</c> (free text, empty clears) and <c>rhythm</c> (<c>{"socialEnergy":"…"}</c>,
+    /// replaces) come from the profile editor and are not registration steps.
+    /// </para>
+    /// <para>
+    /// <c>notificationsOn</c> is the notifications page — true or false; either completes the
+    /// <c>notifications</c> step and sets every notification switch in <c>me/settings</c>.
+    /// The intro video is optional and not a step.
     /// </para>
     /// Values are validated as strictly as they would be on the profile: a malformed date or an
     /// over-long name is refused on the page that collected it. Only the presence of the required
@@ -266,6 +285,36 @@ public sealed class MembersController : BaseController
             cancellationToken);
         return OkResponse(progress);
     }
+
+    /// <summary>GetMySettings</summary>
+    /// <remarks>
+    /// The member's settings: notification switches (<c>notifyIntroductions</c>, <c>notifyReplies</c>,
+    /// <c>notifyWeekendSurprise</c> — null until answered), <c>introductionsPaused</c> with
+    /// <c>pausedAtUtc</c>, and <c>visibility</c> — which profile fields show, e.g.
+    /// <c>{"gender":false,"lifestyle.drink":true}</c>. A field missing from <c>visibility</c> is shown.
+    /// Returns defaults when nothing has been set.
+    /// </remarks>
+    [HttpGet("me/settings")]
+    [Authorize(Policy = AuthPolicies.Member)]
+    [ProducesResponseType(typeof(ApiResponse<MemberSettingsDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<MemberSettingsDto>>> GetMySettings(CancellationToken cancellationToken) =>
+        OkResponse(await _settings.GetAsync(CurrentUser.GetRequiredUserId(), cancellationToken));
+
+    /// <summary>UpdateMySettings</summary>
+    /// <remarks>
+    /// A partial change: any field left out keeps its value, and <c>visibility</c> merges per field.
+    /// Pausing records when it began; pausing again does not reset that. The gender's visibility is
+    /// the same value as <c>genderIsPublic</c> on the profile, and <c>lifestyle.*</c> / <c>beliefs.*</c>
+    /// are the same as each answer's <c>public</c> — either path changes the one stored choice.
+    /// </remarks>
+    [HttpPatch("me/settings")]
+    [Authorize(Policy = AuthPolicies.Member)]
+    [ProducesResponseType(typeof(ApiResponse<MemberSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<MemberSettingsDto>>> UpdateMySettings(
+        [FromBody] UpdateMemberSettingsRequest request,
+        CancellationToken cancellationToken) =>
+        OkResponse(await _settings.UpdateAsync(CurrentUser.GetRequiredUserId(), request, cancellationToken));
 
     /// <summary>Me</summary>
     /// <remarks>
